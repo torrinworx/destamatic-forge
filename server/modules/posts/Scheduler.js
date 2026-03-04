@@ -45,35 +45,11 @@ export default ({ webCore }) => {
 		: normalizeEvery(cfg.schedule?.every, defaults.schedule.every);
 
 	const findExpiredBatch = async (odb, now) => {
-		// MongoDB driver supports dot paths + operators; in-memory and IndexedDB drivers do not.
-		// So we try the Mongo-style filter first, then fall back to a full scan predicate.
-		let posts = [];
-		try {
-			posts = await odb.driver.findMany({
-				collection: 'posts',
-				filter: { 'index.deleteAt': { $lte: now } },
-				options: { limit: batchSize },
-			});
-		} catch {
-			posts = [];
-		}
-
-		if (posts.length > 0) return posts;
-
-		try {
-			posts = await odb.driver.findMany({
-				collection: 'posts',
-				filter: (rec) => {
-					const t = rec?.index?.deleteAt;
-					return typeof t === 'number' && t <= now;
-				},
-				options: { limit: batchSize },
-			});
-		} catch {
-			posts = [];
-		}
-
-		return posts;
+		return odb.driver.findMany({
+			collection: 'posts',
+			filter: { 'index.deleteAt': { $lte: now } },
+			options: { limit: batchSize },
+		});
 	};
 
 	const cleanup = async ({ odb }) => {

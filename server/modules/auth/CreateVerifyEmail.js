@@ -84,30 +84,29 @@ export default (injection = {}) => {
 				const resolvedUserId = ensureId(userDoc.$odb?.key) || ensureId(userDoc.id) || contextUserId;
 				if (!resolvedUserId) return { error: 'user_not_found' };
 
-				const now = Date.now();
-				const windowStart = now - ONE_DAY_MS;
+			const now = Date.now();
+			const windowStart = now - ONE_DAY_MS;
 
-				const recentVerifications = await odb.driver.findMany({
-					collection: 'emailVerifications',
-					filter: {
-						userId: resolvedUserId,
-						createdAt: { $gte: windowStart },
-					},
-				});
+			const recentVerifications = await odb.findMany({
+				collection: 'emailVerifications',
+				query: { userId: resolvedUserId },
+			});
 
-				let countedRequests = 0;
-				let lastRequestAt = 0;
-				let oldestRequestAt = null;
+			let countedRequests = 0;
+			let lastRequestAt = 0;
+			let oldestRequestAt = null;
 
-				if (Array.isArray(recentVerifications)) {
-					for (const doc of recentVerifications) {
+			if (Array.isArray(recentVerifications)) {
+				for (const doc of recentVerifications) {
+					const createdAt = typeof doc.createdAt === 'number' ? doc.createdAt : 0;
+					if (createdAt >= windowStart) {
 						countedRequests += 1;
-						const createdAt = typeof doc.createdAt === 'number' ? doc.createdAt : 0;
 						if (createdAt > lastRequestAt) lastRequestAt = createdAt;
 						if (oldestRequestAt == null || createdAt < oldestRequestAt) oldestRequestAt = createdAt;
-						await disposeDoc(doc);
 					}
+					await disposeDoc(doc);
 				}
+			}
 
 				if (maxDailyRequests > 0 && countedRequests >= maxDailyRequests) {
 					const retryAfter = oldestRequestAt != null ? Math.max(0, (oldestRequestAt + ONE_DAY_MS) - now) : ONE_DAY_MS;

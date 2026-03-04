@@ -18,6 +18,26 @@ const serializePost = (post) => {
 	return out;
 };
 
+const hasDeleteAt = (post) => typeof post?.deleteAt === 'number';
+const matchesDeletedState = (post, deleted, userId) => {
+	const deletedFlag = hasDeleteAt(post);
+	if (deleted && userId) {
+		if (post.user !== userId) return false;
+	}
+	return deleted ? deletedFlag : !deletedFlag;
+};
+
+const summarizePost = async (post, { deleted, userId }) => {
+	if (!post) return null;
+	if (!matchesDeletedState(post, deleted, userId)) {
+		await post.$odb.dispose();
+		return null;
+	}
+	const serialized = serializePost(post);
+	await post.$odb.dispose();
+	return serialized;
+};
+
 export default () => ({
 	authenticated: false,
 
@@ -39,52 +59,46 @@ export default () => ({
 		const limit = Number.isFinite(p.limit) ? Math.max(0, Math.floor(p.limit)) : undefined;
 		const skip = Number.isFinite(p.skip) ? Math.max(0, Math.floor(p.skip)) : undefined;
 
-		const filter = {};
-		filter['index.deleteAt'] = deleted ? { $exists: true } : { $exists: false };
-		if (deleted) filter['index.user'] = userId; // strict: only caller's deleted posts
-
 		if (id) {
-			filter['index.id'] = id;
-			const post = await odb.driver.findOne({ collection: 'posts', filter });
-			if (!post) return false;
-
-			const out = serializePost(post);
-			await post.$odb.dispose();
-			return out;
+			const post = await odb.findOne({
+				collection: 'posts',
+				query: { id },
+			});
+			const serialized = await summarizePost(post, { deleted, userId });
+			if (!serialized) return false;
+			return serialized;
 		}
 
 		if (ids) {
 			const clean = ids.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim());
 			if (clean.length === 0) return [];
 
-			filter['index.id'] = { $in: clean };
-			const posts = await odb.driver.findMany({ collection: 'posts', filter });
 			const map = new Map();
-			for (const post of posts) {
-				const pid = post.$odb?.key;
-				map.set(pid, serializePost(post));
-				await post.$odb.dispose();
+			for (const pid of clean) {
+				const post = await odb.findOne({
+					collection: 'posts',
+					query: { id: pid },
+				});
+				const serialized = await summarizePost(post, { deleted, userId });
+				if (serialized) map.set(pid, serialized);
 			}
 
-			// align output to input order
 			return clean.map(pid => map.get(pid) ?? null);
 		}
-
-		// list deleted posts only when explicitly requested
 		if (!deleted) {
 			return [];
 		}
 
-		const options = {};
-		if (typeof limit === 'number') options.limit = limit;
-		if (typeof skip === 'number') options.skip = skip;
-
-		const posts = await odb.driver.findMany({ collection: 'posts', filter, options });
-		const out = [];
+		const query = { user: userId };
+		const posts = await odb.findMany({ collection: 'posts', query });
+		const deletedPosts = [];
 		for (const post of posts) {
-			out.push(serializePost(post));
-			await post.$odb.dispose();
+			const serialized = await summarizePost(post, { deleted, userId });
+			if (serialized) deletedPosts.push(serialized);
 		}
-		return out;
+
+		const start = typeof skip === 'number' ? skip : 0;
+		const end = typeof limit === 'number' ? start + limit : undefined;
+		return deletedPosts.slice(start, end);
 	},
 });

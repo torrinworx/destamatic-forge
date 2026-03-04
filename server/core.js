@@ -2,7 +2,7 @@ import { WebSocketServer } from 'ws';
 import { OObject } from 'destam';
 
 import createODB from '../odb/index.js';
-import mongodbDriver from '../odb/drivers/mongodb.js';
+import memoryDriver from '../odb/drivers/memory.js';
 
 import createValidation from './validate.js';
 import { default as syncNet } from './sync.js';
@@ -11,7 +11,17 @@ import http from './servers/http.js';
 import { parse } from '../common/clone.js';
 import createSchedule from './schedule.js';
 
-const core = async ({ server = null, root, modulesDir, db, table, env, port, moduleConfig }) => {
+const core = async ({
+	server = null,
+	root,
+	modulesDir,
+	env,
+	port,
+	moduleConfig,
+	odbDriver,
+	odbDriverProps,
+	odbThrottleMs,
+} = {}) => {
 	server = server ? server() : http();
 
 	if (env === 'production') server.production({ root });
@@ -21,13 +31,11 @@ const core = async ({ server = null, root, modulesDir, db, table, env, port, mod
 		server.development({ vite, root });
 	}
 
+	const driver = odbDriver ?? memoryDriver;
 	let odb = await createODB({
-		driver: mongodbDriver,
-		throttleMs: 100,
-		driverProps: {
-			uri: db,
-			dbName: table,
-		},
+		driver,
+		throttleMs: odbThrottleMs ?? 100,
+		driverProps: odbDriverProps,
 	});
 
 	// Wrap ODB so validators run automatically on open/findOne/findMany

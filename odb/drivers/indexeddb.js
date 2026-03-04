@@ -1,5 +1,7 @@
 // drivers/indexeddb.js
 
+import { MAX_IN_MEMORY_SCAN, matchFilter, compareBySort } from '../dsl.js';
+
 const isPlainObject = v =>
 	v && typeof v === 'object' && (v.constructor === Object || Object.getPrototypeOf(v) === null);
 
@@ -191,6 +193,40 @@ export default async function indexeddbDriver({
 		return result;
 	};
 
+	const scanMatches = async (collection, query, { stopAfterFirst = false } = {}) => {
+		if (!query?.filter) throw new Error('indexeddbDriver.query: missing query.filter');
+
+		const d = await openDB();
+		if (!d.objectStoreNames.contains(collection)) return [];
+
+		const tx = d.transaction([collection], 'readonly');
+		const store = tx.objectStore(collection);
+
+		const matches = await new Promise((resolve, reject) => {
+			const res = [];
+			let scanned = 0;
+			const req = store.openCursor();
+			req.onerror = () => reject(req.error || new Error('IndexedDB cursor error'));
+			req.onsuccess = () => {
+				const cursor = req.result;
+				if (!cursor) return resolve(res);
+				const rec = cursor.value;
+				scanned += 1;
+				if (scanned > MAX_IN_MEMORY_SCAN) {
+					return reject(new Error(`ODB query exceeded in-memory scan limit (${MAX_IN_MEMORY_SCAN})`));
+				}
+				if (matchFilter(rec?.index, query.filter)) {
+					res.push(clone(rec));
+					if (stopAfterFirst) return resolve(res);
+				}
+				cursor.continue();
+			};
+		});
+
+		await txDone(tx);
+		return matches;
+	};
+
 	const api = {
 		async create({ collection, record }) {
 			if (!collection) throw new Error('indexeddbDriver.create: missing collection');
@@ -267,65 +303,30 @@ export default async function indexeddbDriver({
 
 		async queryOne({ collection, query }) {
 			if (!collection) throw new Error('indexeddbDriver.queryOne: missing collection');
-			if (!query || !Object.keys(query).length) {
-				throw new Error('indexeddbDriver.queryOne: query required');
+			if (!query?.filter) throw new Error('indexeddbDriver.queryOne: query.filter required');
+
+			const stopAfterFirst = !(query.sort?.length);
+			const matches = await scanMatches(collection, query, { stopAfterFirst });
+			if (!matches.length) return false;
+			if (query.sort?.length) {
+				matches.sort((a, b) => compareBySort(a.index, b.index, query.sort));
 			}
-
-			const d = await openDB();
-			if (!d.objectStoreNames.contains(collection)) return false;
-
-			const tx = d.transaction([collection], 'readonly');
-			const store = tx.objectStore(collection);
-
-			const out = await new Promise((resolve, reject) => {
-				const req = store.openCursor();
-				req.onerror = () => reject(req.error || new Error('IndexedDB cursor error'));
-				req.onsuccess = () => {
-					const cursor = req.result;
-					if (!cursor) return resolve(false);
-					const rec = cursor.value;
-					if (deepMatch(rec?.index, query)) return resolve(clone(rec));
-					cursor.continue();
-				};
-			});
-
-			await txDone(tx);
-			return out;
+			return matches[0] || false;
 		},
 
-		async queryMany({ collection, query, options }) {
+		async queryMany({ collection, query }) {
 			if (!collection) throw new Error('indexeddbDriver.queryMany: missing collection');
-			if (!query || !Object.keys(query).length) {
-				throw new Error('indexeddbDriver.queryMany: query required');
+			if (!query?.filter) throw new Error('indexeddbDriver.queryMany: query.filter required');
+
+			const matches = await scanMatches(collection, query);
+			if (query.sort?.length) {
+				matches.sort((a, b) => compareBySort(a.index, b.index, query.sort));
 			}
 
-			const limit = options?.limit ?? Infinity;
-
-			const d = await openDB();
-			if (!d.objectStoreNames.contains(collection)) return [];
-
-			const tx = d.transaction([collection], 'readonly');
-			const store = tx.objectStore(collection);
-
-			const out = await new Promise((resolve, reject) => {
-				const res = [];
-				const req = store.openCursor();
-				req.onerror = () => reject(req.error || new Error('IndexedDB cursor error'));
-				req.onsuccess = () => {
-					const cursor = req.result;
-					if (!cursor) return resolve(res);
-
-					const rec = cursor.value;
-					if (deepMatch(rec?.index, query)) {
-						res.push(clone(rec));
-						if (res.length >= limit) return resolve(res);
-					}
-					cursor.continue();
-				};
-			});
-
-			await txDone(tx);
-			return out;
+			const limit = query.limit ?? Infinity;
+			const skip = query.skip ?? 0;
+			if (skip || limit !== Infinity) return matches.slice(skip, skip + limit);
+			return matches;
 		},
 
 		async watch({ collection, key, onRecord }) {
@@ -353,35 +354,26 @@ export default async function indexeddbDriver({
 					? filter
 					: (rec) => deepMatch(rec?.index, filter || {});
 
-			const rec = await api.queryOne({ collection, query: filter && typeof filter === 'object' ? filter : (options?.fallbackQuery || {}) })
-				.catch(() => false);
+			const d = await openDB();
+			if (!d.objectStoreNames.contains(collection)) return false;
 
-			// If filter is a function, we must scan manually
-			if (typeof filter === 'function') {
-				const d = await openDB();
-				if (!d.objectStoreNames.contains(collection)) return false;
+			const tx = d.transaction([collection], 'readonly');
+			const store = tx.objectStore(collection);
 
-				const tx = d.transaction([collection], 'readonly');
-				const store = tx.objectStore(collection);
+			const out = await new Promise((resolve, reject) => {
+				const req = store.openCursor();
+				req.onerror = () => reject(req.error || new Error('IndexedDB cursor error'));
+				req.onsuccess = () => {
+					const cursor = req.result;
+					if (!cursor) return resolve(false);
+					const v = cursor.value;
+					if (pred(clone(v))) return resolve(clone(v));
+					cursor.continue();
+				};
+			});
 
-				const out = await new Promise((resolve, reject) => {
-					const req = store.openCursor();
-					req.onerror = () => reject(req.error || new Error('IndexedDB cursor error'));
-					req.onsuccess = () => {
-						const cursor = req.result;
-						if (!cursor) return resolve(false);
-						const v = cursor.value;
-						if (pred(clone(v))) return resolve(clone(v));
-						cursor.continue();
-					};
-				});
-
-				await txDone(tx);
-				return out;
-			}
-
-			// object filter case: queryOne already did it
-			return rec || false;
+			await txDone(tx);
+			return out;
 		},
 
 		async rawFindMany({ collection, filter, options }) {
@@ -392,36 +384,30 @@ export default async function indexeddbDriver({
 
 			const limit = options?.limit ?? Infinity;
 
-			// function filter must scan
-			if (typeof filter === 'function') {
-				const d = await openDB();
-				if (!d.objectStoreNames.contains(collection)) return [];
+			const d = await openDB();
+			if (!d.objectStoreNames.contains(collection)) return [];
 
-				const tx = d.transaction([collection], 'readonly');
-				const store = tx.objectStore(collection);
+			const tx = d.transaction([collection], 'readonly');
+			const store = tx.objectStore(collection);
 
-				const out = await new Promise((resolve, reject) => {
-					const res = [];
-					const req = store.openCursor();
-					req.onerror = () => reject(req.error || new Error('IndexedDB cursor error'));
-					req.onsuccess = () => {
-						const cursor = req.result;
-						if (!cursor) return resolve(res);
-						const v = cursor.value;
-						if (pred(clone(v))) {
-							res.push(clone(v));
-							if (res.length >= limit) return resolve(res);
-						}
-						cursor.continue();
-					};
-				});
+			const out = await new Promise((resolve, reject) => {
+				const res = [];
+				const req = store.openCursor();
+				req.onerror = () => reject(req.error || new Error('IndexedDB cursor error'));
+				req.onsuccess = () => {
+					const cursor = req.result;
+					if (!cursor) return resolve(res);
+					const v = cursor.value;
+					if (pred(clone(v))) {
+						res.push(clone(v));
+						if (res.length >= limit) return resolve(res);
+					}
+					cursor.continue();
+				};
+			});
 
-				await txDone(tx);
-				return out;
-			}
-
-			// object filter maps to queryMany
-			return api.queryMany({ collection, query: filter || {}, options });
+			await txDone(tx);
+			return out;
 		},
 
 		async close() {

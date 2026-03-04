@@ -27,6 +27,9 @@ const fullMode = process.env.ODB_FULL === '1' || process.env.ODB_FULL === 'true'
 const fullSkip = fullMode ? false : 'set ODB_FULL=1 to enable';
 const fullTest = (name, fn) => test(name, { skip: fullSkip }, fn);
 
+const eq = (field, value) => ({ field, op: 'eq', value });
+const q = (filter, extra = {}) => ({ filter, ...extra });
+
 export const runODBDriverTests = ({
 	name,
 	driver, // raw import (factory or instance)
@@ -38,13 +41,21 @@ export const runODBDriverTests = ({
 	if (!driver) throw new Error('runODBDriverTests: missing driver');
 
 	const collection = `odb_test_${name}`;
+	const makeDriverProps = () => {
+		if (name !== 'indexeddb') return driverProps;
+		const suffix = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+		return { ...driverProps, dbName: `odb_test_${name}_${suffix}`, broadcast: false };
+	};
+
+	const createDb = async (props = null) =>
+		createODB({ driver, throttleMs, driverProps: props || makeDriverProps() });
 
 	test(`[${name}] open() creates doc (default empty OObject)`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			const doc = await db.open({
 				collection,
-				query: { type: 'empty-default', v: 1 },
+				query: q({ and: [eq('type', 'empty-default'), eq('v', 1)] }),
 			});
 
 			expect(doc).to.be.instanceOf(OObject);
@@ -56,19 +67,19 @@ export const runODBDriverTests = ({
 	});
 
 	test(`[${name}] open() reuses existing doc (query + cache)`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			const initial = OObject({ kind: 'reuse', count: 0, items: OArray([]) });
 
 			const a = await db.open({
 				collection,
-				query: { kind: 'reuse' },
+				query: q(eq('kind', 'reuse')),
 				value: initial,
 			});
 
 			const b = await db.open({
 				collection,
-				query: { kind: 'reuse' },
+				query: q(eq('kind', 'reuse')),
 			});
 
 			expect(a).to.equal(b);
@@ -78,18 +89,18 @@ export const runODBDriverTests = ({
 	});
 
 	test(`[${name}] local mutation persists (findOne sees it)`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			const doc = await db.open({
 				collection,
-				query: { kind: 'persist' },
+				query: q(eq('kind', 'persist')),
 				value: OObject({ kind: 'persist', count: 0 }),
 			});
 
 			doc.count = 123;
 			await doc.$odb.flush();
 
-			const loaded = await db.findOne({ collection, query: { kind: 'persist' } });
+			const loaded = await db.findOne({ collection, query: q(eq('kind', 'persist')) });
 			expect(loaded).to.be.instanceOf(OObject);
 			expect(loaded.count).to.equal(123);
 		} finally {
@@ -98,19 +109,19 @@ export const runODBDriverTests = ({
 	});
 
 	test(`[${name}] findMany returns multiple docs`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			for (let i = 0; i < 3; i++) {
 				const doc = await db.open({
 					collection,
-					query: { kind: 'many', n: i },
+					query: q({ and: [eq('kind', 'many'), eq('n', i)] }),
 					value: OObject({ kind: 'many', n: i, val: i * 10 }),
 				});
 				doc.val = i * 100;
 				await doc.$odb.flush();
 			}
 
-			const found = await db.findMany({ collection, query: { kind: 'many' } });
+			const found = await db.findMany({ collection, query: q(eq('kind', 'many')) });
 			expect(found).to.be.an('array');
 			expect(found.length).to.be.at.least(3);
 
@@ -121,21 +132,251 @@ export const runODBDriverTests = ({
 		}
 	});
 
+	test(`[${name}] DSL operators (eq/neq/in/nin/exists/range)`, async () => {
+		const db = await createDb();
+		try {
+			const docs = [
+				OObject({ kind: 'dsl-ops', score: 5, status: 'open', tag: 'a' }),
+				OObject({ kind: 'dsl-ops', score: 12, status: 'archived', tag: 'b', extra: true }),
+				OObject({ kind: 'dsl-ops', score: 25, status: 'closed', tag: 'c' }),
+			];
+
+			for (const doc of docs) {
+				const opened = await db.open({
+					collection,
+					query: q({ and: [eq('kind', 'dsl-ops'), eq('score', doc.score)] }),
+					value: doc,
+				});
+				await opened.$odb.flush();
+			}
+
+			const gt = await db.findMany({
+				collection,
+				query: q({
+					and: [eq('kind', 'dsl-ops'), { field: 'score', op: 'gt', value: 10 }],
+				}),
+			});
+			expect(gt.map(d => d.score).sort((a, b) => a - b)).to.eql([12, 25]);
+
+			const lte = await db.findMany({
+				collection,
+				query: q({
+					and: [eq('kind', 'dsl-ops'), { field: 'score', op: 'lte', value: 12 }],
+				}),
+			});
+			expect(lte.map(d => d.score).sort((a, b) => a - b)).to.eql([5, 12]);
+
+			const exists = await db.findMany({
+				collection,
+				query: q({
+					and: [eq('kind', 'dsl-ops'), { field: 'extra', op: 'exists', value: true }],
+				}),
+			});
+			expect(exists.length).to.equal(1);
+
+			const inList = await db.findMany({
+				collection,
+				query: q({
+					and: [
+						eq('kind', 'dsl-ops'),
+						{ field: 'status', op: 'in', value: ['open', 'archived'] },
+					],
+				}),
+			});
+			expect(inList.map(d => d.status).sort()).to.eql(['archived', 'open']);
+
+			const ninList = await db.findMany({
+				collection,
+				query: q({
+					and: [
+						eq('kind', 'dsl-ops'),
+						{ field: 'status', op: 'nin', value: ['archived'] },
+					],
+				}),
+			});
+			expect(ninList.map(d => d.status).sort()).to.eql(['closed', 'open']);
+
+			const neq = await db.findMany({
+				collection,
+				query: q({
+					and: [eq('kind', 'dsl-ops'), { field: 'tag', op: 'neq', value: 'b' }],
+				}),
+			});
+			expect(neq.map(d => d.tag).sort()).to.eql(['a', 'c']);
+		} finally {
+			await db.close();
+		}
+	});
+
+	test(`[${name}] DSL nested and/or/not`, async () => {
+		const db = await createDb();
+		try {
+			const docs = [
+				OObject({ kind: 'dsl-nested', status: 'draft', flag: true }),
+				OObject({ kind: 'dsl-nested', status: 'archived', flag: false }),
+				OObject({ kind: 'dsl-nested', status: 'published', flag: true }),
+			];
+
+			for (const doc of docs) {
+				const opened = await db.open({
+					collection,
+					query: q({ and: [eq('kind', 'dsl-nested'), eq('status', doc.status)] }),
+					value: doc,
+				});
+				await opened.$odb.flush();
+			}
+
+			const result = await db.findMany({
+				collection,
+				query: q({
+					and: [
+						eq('kind', 'dsl-nested'),
+						{
+							or: [
+								eq('status', 'draft'),
+								eq('status', 'archived'),
+							],
+						},
+						{ not: eq('flag', true) },
+					],
+				}),
+			});
+
+			expect(result.length).to.equal(1);
+			expect(result[0].status).to.equal('archived');
+		} finally {
+			await db.close();
+		}
+	});
+
+	test(`[${name}] DSL dot-path fields`, async () => {
+		const db = await createDb();
+		try {
+			const doc = await db.open({
+				collection,
+				query: q(eq('kind', 'dsl-dot')),
+				value: OObject({ kind: 'dsl-dot', meta: OObject({ status: 'ok' }) }),
+			});
+			await doc.$odb.flush();
+
+			const found = await db.findOne({
+				collection,
+				query: q({ and: [eq('kind', 'dsl-dot'), eq('meta.status', 'ok')] }),
+			});
+			expect(found).to.be.instanceOf(OObject);
+			expect(found.meta.status).to.equal('ok');
+		} finally {
+			await db.close();
+		}
+	});
+
+	test(`[${name}] DSL sort + pagination`, async () => {
+		const db = await createDb();
+		try {
+			for (let i = 0; i < 5; i++) {
+				const doc = await db.open({
+					collection,
+					query: q({ and: [eq('kind', 'dsl-sort'), eq('n', i)] }),
+					value: OObject({ kind: 'dsl-sort', n: i }),
+				});
+				await doc.$odb.flush();
+			}
+
+			const page = await db.findMany({
+				collection,
+				query: q(eq('kind', 'dsl-sort'), {
+					sort: [{ field: 'n', dir: 'asc' }],
+					skip: 1,
+					limit: 2,
+				}),
+			});
+
+			expect(page.map(d => d.n)).to.eql([1, 2]);
+		} finally {
+			await db.close();
+		}
+	});
+
+	test(`[${name}] DSL pagination without sort throws`, async () => {
+		const db = await createDb();
+		try {
+			let threw = false;
+			try {
+				await db.findMany({
+					collection,
+					query: q(eq('kind', 'dsl-sort'), { limit: 1 }),
+				});
+			} catch (e) {
+				threw = true;
+				expect(e.message.toLowerCase()).to.include('sort');
+			}
+			expect(threw).to.equal(true);
+		} finally {
+			await db.close();
+		}
+	});
+
+	test(`[${name}] legacy query objects are rejected`, async () => {
+		const db = await createDb();
+		try {
+			let threw = false;
+			try {
+				await db.findOne({ collection, query: { kind: 'legacy' } });
+			} catch (e) {
+				threw = true;
+				expect(e.message.toLowerCase()).to.include('filter');
+			}
+			expect(threw).to.equal(true);
+		} finally {
+			await db.close();
+		}
+	});
+
+	test(`[${name}] in-memory scan limit enforced`, async () => {
+		if (name === 'mongodb') return;
+		const db = await createDb();
+		try {
+			for (let i = 0; i < 5100; i++) {
+				const doc = await db.open({
+					collection,
+					value: OObject({ kind: 'dsl-scan', n: i }),
+				});
+				await doc.$odb.flush();
+			}
+
+			let threw = false;
+			try {
+				await db.findMany({
+					collection,
+					query: q(eq('kind', 'dsl-scan'), {
+						sort: [{ field: 'n', dir: 'asc' }],
+					}),
+				});
+			} catch (e) {
+				threw = true;
+				expect(e.message.toLowerCase()).to.include('scan limit');
+			}
+			expect(threw).to.equal(true);
+		} finally {
+			await db.close();
+		}
+	});
+
 	test(`[${name}] remove() deletes doc and throws if not found`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			await db.open({
 				collection,
-				query: { kind: 'remove-me' },
+				query: q(eq('kind', 'remove-me')),
 				value: OObject({ kind: 'remove-me', ok: true }),
 			});
 
-			const removed = await db.remove({ collection, query: { kind: 'remove-me' } });
+			const removed = await db.remove({ collection, query: q(eq('kind', 'remove-me')) });
 			expect(removed).to.equal(true);
 
 			let threw = false;
 			try {
-				await db.remove({ collection, query: { kind: 'remove-me' } });
+				await db.remove({ collection, query: q(eq('kind', 'remove-me')) });
 			} catch (e) {
 				threw = true;
 				expect(e.message.toLowerCase()).to.include('not found');
@@ -147,13 +388,13 @@ export const runODBDriverTests = ({
 	});
 
 	test(`[${name}] rejects plain arrays in state tree (strict mode)`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			let threw = false;
 			try {
 				await db.open({
 					collection,
-					query: { kind: 'invalid-array' },
+					query: q(eq('kind', 'invalid-array')),
 					value: OObject({ kind: 'invalid-array', items: [] }),
 				});
 			} catch (e) {
@@ -170,9 +411,10 @@ export const runODBDriverTests = ({
 		let db1;
 		let db2;
 
+		const props = makeDriverProps();
 		const sharedDriver =
 			typeof driver === 'function'
-				? await driver(driverProps)
+				? await driver(props)
 				: driver;
 
 		try {
@@ -181,13 +423,13 @@ export const runODBDriverTests = ({
 
 			const doc1 = await db1.open({
 				collection,
-				query: { kind: 'rev-conflict' },
+				query: q(eq('kind', 'rev-conflict')),
 				value: OObject({ kind: 'rev-conflict', count: 0 }),
 			});
 
 			const doc2 = await db2.open({
 				collection,
-				query: { kind: 'rev-conflict' },
+				query: q(eq('kind', 'rev-conflict')),
 			});
 
 			doc1.count = 1;
@@ -198,7 +440,7 @@ export const runODBDriverTests = ({
 				doc2.$odb.rev = 0;
 			}
 			await doc2.$odb.flush();
-			const reloaded = await db2.findOne({ collection, query: { kind: 'rev-conflict' } });
+			const reloaded = await db2.findOne({ collection, query: q(eq('kind', 'rev-conflict')) });
 			expect(reloaded).to.be.instanceOf(OObject);
 			expect(reloaded.count).to.equal(1);
 		} finally {
@@ -212,9 +454,10 @@ export const runODBDriverTests = ({
 		let db1;
 		let db2;
 
+		const props = makeDriverProps();
 		const sharedDriver =
 			typeof driver === 'function'
-				? await driver(driverProps)
+				? await driver(props)
 				: driver;
 
 		try {
@@ -223,13 +466,13 @@ export const runODBDriverTests = ({
 
 			const doc1 = await db1.open({
 				collection,
-				query: { kind: 'live' },
+				query: q(eq('kind', 'live')),
 				value: OObject({ kind: 'live', text: 'a', messages: OArray([]) }),
 			});
 
 			const doc2 = await db2.open({
 				collection,
-				query: { kind: 'live' },
+				query: q(eq('kind', 'live')),
 			});
 
 			doc1.text = 'hello';
@@ -249,11 +492,11 @@ export const runODBDriverTests = ({
 	});
 
 	test(`[${name}] reload preserves OArray element identity (observer.id)`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			const doc = await db.open({
 				collection,
-				query: { kind: 'array-identity' },
+				query: q(eq('kind', 'array-identity')),
 				value: OObject({
 					kind: 'array-identity',
 					items: OArray([
@@ -284,9 +527,10 @@ export const runODBDriverTests = ({
 		let db1;
 		let db2;
 
+		const props = makeDriverProps();
 		const sharedDriver =
 			typeof driver === 'function'
-				? await driver(driverProps)
+				? await driver(props)
 				: driver;
 
 		try {
@@ -295,7 +539,7 @@ export const runODBDriverTests = ({
 
 			const doc1 = await db1.open({
 				collection,
-				query: { kind: 'array-reorder' },
+				query: q(eq('kind', 'array-reorder')),
 				value: OObject({
 					kind: 'array-reorder',
 					messages: OArray([
@@ -307,7 +551,7 @@ export const runODBDriverTests = ({
 
 			const doc2 = await db2.open({
 				collection,
-				query: { kind: 'array-reorder' },
+				query: q(eq('kind', 'array-reorder')),
 			});
 
 			await doc1.$odb.flush();
@@ -339,14 +583,14 @@ export const runODBDriverTests = ({
 	});
 
 	test(`[${name}] fuzz OArray mutations preserve identity`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			const seed = 424242;
 			const rng = createRng(seed);
 
 			const doc = await db.open({
 				collection,
-				query: { kind: 'fuzz-array' },
+				query: q(eq('kind', 'fuzz-array')),
 				value: OObject({
 					kind: 'fuzz-array',
 					items: OArray([
@@ -441,11 +685,11 @@ export const runODBDriverTests = ({
 	});
 
 	test(`[${name}] nested OArray stays observable after reload`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			const doc = await db.open({
 				collection,
-				query: { kind: 'nested-array' },
+				query: q(eq('kind', 'nested-array')),
 				value: OObject({
 					kind: 'nested-array',
 					nested: OArray([
@@ -467,7 +711,7 @@ export const runODBDriverTests = ({
 			firstList.push(OObject({ label: 'z' }));
 			await doc.$odb.flush();
 
-			const reloaded = await db.findOne({ collection, query: { kind: 'nested-array' } });
+			const reloaded = await db.findOne({ collection, query: q(eq('kind', 'nested-array')) });
 			expect(reloaded.nested[0].list).to.be.instanceOf(OArray);
 			expect(reloaded.nested[0].list.length).to.equal(3);
 		} finally {
@@ -476,11 +720,11 @@ export const runODBDriverTests = ({
 	});
 
 	test(`[${name}] index updates on deep mutation`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			const doc = await db.open({
 				collection,
-				query: { kind: 'deep-index' },
+				query: q(eq('kind', 'deep-index')),
 				value: OObject({
 					kind: 'deep-index',
 					meta: OObject({
@@ -496,7 +740,9 @@ export const runODBDriverTests = ({
 
 			const found = await db.findOne({
 				collection,
-				query: { kind: 'deep-index', meta: { status: 'updated' } },
+				query: q({
+					and: [eq('kind', 'deep-index'), eq('meta.status', 'updated')],
+				}),
 			});
 			expect(found).to.be.instanceOf(OObject);
 			expect(found.meta.status).to.equal('updated');
@@ -506,11 +752,11 @@ export const runODBDriverTests = ({
 	});
 
 	test(`[${name}] concurrent flushes on same doc are serialized`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			const doc = await db.open({
 				collection,
-				query: { kind: 'flush-serialize' },
+				query: q(eq('kind', 'flush-serialize')),
 				value: OObject({ kind: 'flush-serialize', count: 0 }),
 			});
 
@@ -530,14 +776,14 @@ export const runODBDriverTests = ({
 	});
 
 	fullTest(`[${name}] full fuzz OArray mutations (10k ops)`, async () => {
-		const db = await createODB({ driver, throttleMs, driverProps });
+		const db = await createDb();
 		try {
 			const seed = 1337;
 			const rng = createRng(seed);
 
 			const doc = await db.open({
 				collection,
-				query: { kind: 'fuzz-array-full' },
+				query: q(eq('kind', 'fuzz-array-full')),
 				value: OObject({
 					kind: 'fuzz-array-full',
 					items: OArray([
@@ -628,9 +874,10 @@ export const runODBDriverTests = ({
 
 	fullTest(`[${name}] concurrent writer stress (3 instances)`, async () => {
 		let dbs;
+		const props = makeDriverProps();
 		const sharedDriver =
 			typeof driver === 'function'
-				? await driver(driverProps)
+				? await driver(props)
 				: driver;
 
 		try {
@@ -644,7 +891,7 @@ export const runODBDriverTests = ({
 			for (const db of dbs) {
 				const doc = await db.open({
 					collection,
-					query: { kind: 'concurrent-writers' },
+					query: q(eq('kind', 'concurrent-writers')),
 					value: OObject({ kind: 'concurrent-writers', count: 0 }),
 				});
 				docs.push(doc);
@@ -684,9 +931,10 @@ export const runODBDriverTests = ({
 		let db1;
 		let db2;
 
+		const props = makeDriverProps();
 		const sharedDriver =
 			typeof driver === 'function'
-				? await driver(driverProps)
+				? await driver(props)
 				: driver;
 
 		try {
@@ -695,13 +943,13 @@ export const runODBDriverTests = ({
 
 			const doc1 = await db1.open({
 				collection,
-				query: { kind: 'dispose-ghost' },
+				query: q(eq('kind', 'dispose-ghost')),
 				value: OObject({ kind: 'dispose-ghost', text: 'a' }),
 			});
 
 			const doc2 = await db2.open({
 				collection,
-				query: { kind: 'dispose-ghost' },
+				query: q(eq('kind', 'dispose-ghost')),
 			});
 
 			await doc2.$odb.dispose();

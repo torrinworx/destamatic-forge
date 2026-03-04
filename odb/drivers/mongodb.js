@@ -1,25 +1,9 @@
 import { MongoClient } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import { buildMongoFilter, buildMongoSort } from '../dsl.js';
 
 const ensureIndex = async (col) => {
 	await col.createIndex({ key: 1 }, { unique: true });
-};
-
-const isPlainObject = v =>
-	v && typeof v === 'object' && (v.constructor === Object || Object.getPrototypeOf(v) === null);
-
-const withDotNotation = (obj, prefix = '') => {
-	const out = {};
-	for (const [k, v] of Object.entries(obj || {})) {
-		const key = prefix ? `${prefix}.${k}` : k;
-
-		if (isPlainObject(v)) {
-			Object.assign(out, withDotNotation(v, key));
-		} else {
-			out[key] = v;
-		}
-	}
-	return out;
 };
 
 export default async function mongodbDriver({
@@ -142,30 +126,38 @@ export default async function mongodbDriver({
 
 		async queryOne({ collection, query }) {
 			const col = await getCol(collection);
+			if (!query?.filter) throw new Error('mongodbDriver.queryOne: query.filter required');
 
-			// Query against record.index with dot notation for nested objects
-			const filter = withDotNotation(query, 'index');
+			const filter = buildMongoFilter(query.filter, { prefix: 'index' });
+			const sort = buildMongoSort(query.sort, { prefix: 'index' });
 
-			const doc = await col.findOne(filter, {
-				projection: { _id: 0, key: 1, state_tree: 1, index: 1, rev: 1 },
-				sort: { _id: 1 },
-			});
+			const doc = await col.findOne(
+				filter,
+				{
+					projection: { _id: 0, key: 1, state_tree: 1, index: 1, rev: 1 },
+					sort: sort || { _id: 1 },
+				}
+			);
 
 			return doc || false;
 		},
 
-		async queryMany({ collection, query, options }) {
+		async queryMany({ collection, query }) {
 			const col = await getCol(collection);
-			const filter = withDotNotation(query, 'index');
+			if (!query?.filter) throw new Error('mongodbDriver.queryMany: query.filter required');
 
-			const limit = options?.limit ?? 0;
+			const filter = buildMongoFilter(query.filter, { prefix: 'index' });
+			const sort = buildMongoSort(query.sort, { prefix: 'index' });
 
 			const cursor = col.find(filter, {
 				projection: { _id: 0, key: 1, state_tree: 1, index: 1, rev: 1 },
-				sort: { _id: 1 },
+				sort: sort || { _id: 1 },
 			});
 
-			if (limit && limit !== Infinity) cursor.limit(limit);
+			if (typeof query.skip === 'number' && query.skip > 0) cursor.skip(query.skip);
+			if (typeof query.limit === 'number' && query.limit > 0 && query.limit !== Infinity) {
+				cursor.limit(query.limit);
+			}
 
 			return await cursor.toArray();
 		},

@@ -16,7 +16,7 @@ Think of ODB like:
 
 - `collection` = table / mongo collection (ex: `"projects"`)
 - `doc` = one `OObject` state tree
-- `query` = how you find the doc (matches a queryable “index”)
+- `query` = how you find the doc (DSL filter against the index)
 - `doc.$odb` = control handle (flush/reload/dispose/remove)
 
 ---
@@ -66,7 +66,9 @@ import { OObject } from 'destam';
 
 const settings = await odb.open({
   collection: 'settings',
-  query: { userId: 'u_123' },
+  query: {
+    filter: { field: 'userId', op: 'eq', value: 'u_123' },
+  },
   value: OObject({
     userId: 'u_123',
     theme: 'dark',
@@ -93,7 +95,9 @@ That’s it—ODB will autosave shortly after changes.
 ```js
 const doc = await odb.findOne({
   collection: 'projects',
-  query: { id: 'p_1' },
+  query: {
+    filter: { field: 'id', op: 'eq', value: 'p_1' },
+  },
 });
 
 if (!doc) {
@@ -108,8 +112,11 @@ if (!doc) {
 ```js
 const docs = await odb.findMany({
   collection: 'projects',
-  query: { ownerId: 'u_123' },
-  options: { limit: 50 },
+  query: {
+    filter: { field: 'ownerId', op: 'eq', value: 'u_123' },
+    sort: [{ field: 'createdAt', dir: 'desc' }],
+    limit: 50,
+  },
 });
 ```
 
@@ -189,7 +196,7 @@ Important detail: ODB syncs **in-place**, so UI bindings keep working because th
 
 ---
 
-## Queries (what you can match on)
+## Queries (DSL)
 
 ODB queries run against a stored **index** (a JSON-friendly snapshot of your doc). Practically, this means:
 
@@ -197,12 +204,52 @@ ODB queries run against a stored **index** (a JSON-friendly snapshot of your doc
 - Dates are indexed as numbers (`+new Date()`)
 - Destam UUID-like values are indexed as hex strings (`id.toHex()`)
 
-Examples:
+### DSL shape
+
+```js
+const query = {
+  filter: {
+    and: [
+      { field: 'projectId', op: 'eq', value: 'p_1' },
+      {
+        or: [
+          { field: 'status', op: 'eq', value: 'open' },
+          { field: 'status', op: 'eq', value: 'archived' },
+        ],
+      },
+    ],
+  },
+  sort: [{ field: 'createdAt', dir: 'desc' }],
+  limit: 25,
+  skip: 0,
+};
+```
+
+### Operators
+
+- `eq`, `neq`
+- `gt`, `gte`, `lt`, `lte`
+- `in`, `nin` (value must be an array)
+- `exists` (value coerces to boolean)
+
+### Notes
+
+- Legacy query objects are not supported; all queries must use the DSL.
+- Use dot paths for nested fields (ex: `meta.authorId`).
+
+### Examples
 
 ```js
 await odb.findMany({
   collection: 'tasks',
-  query: { projectId: 'p_1', status: 'open' },
+  query: {
+    filter: {
+      and: [
+        { field: 'projectId', op: 'eq', value: 'p_1' },
+        { field: 'status', op: 'eq', value: 'open' },
+      ],
+    },
+  },
 });
 ```
 
@@ -211,9 +258,22 @@ Nested query:
 ```js
 await odb.findMany({
   collection: 'docs',
-  query: { meta: { authorId: 'u_123' } },
+  query: {
+    filter: { field: 'meta.authorId', op: 'eq', value: 'u_123' },
+  },
 });
 ```
+
+---
+
+### Pagination and sort
+
+- `limit`/`skip` require a `sort` for deterministic results.
+- Without `sort`, pagination throws an error.
+
+### Scan limit
+
+Drivers that must scan in-memory will throw after 5,000 records.
 
 ---
 
@@ -224,8 +284,14 @@ ODB caches open docs by `{collection, key}`.
 So if you open the same doc twice, you usually get the same object reference back:
 
 ```js
-const a = await odb.findOne({ collection: 'settings', query: { userId: 'u_123' } });
-const b = await odb.findOne({ collection: 'settings', query: { userId: 'u_123' } });
+const a = await odb.findOne({
+  collection: 'settings',
+  query: { filter: { field: 'userId', op: 'eq', value: 'u_123' } },
+});
+const b = await odb.findOne({
+  collection: 'settings',
+  query: { filter: { field: 'userId', op: 'eq', value: 'u_123' } },
+});
 
 a === b; // true
 ```
@@ -240,7 +306,7 @@ This is intentional—prevents duplicate watchers and conflicting local copies.
 ```js
 const settings = await odb.open({
   collection: 'settings',
-  query: { userId },
+  query: { filter: { field: 'userId', op: 'eq', value: userId } },
   value: OObject({ userId, theme: 'dark' }),
 });
 ```
@@ -273,10 +339,10 @@ const stop = () => doc.$odb.dispose();
 ```ts
 const odb = await createODB({ driver, throttleMs?, driverProps? });
 
-await odb.open({ collection, query?, value? })      // get-or-create
-await odb.findOne({ collection, query })            // existing only
-await odb.findMany({ collection, query, options? }) // list
-await odb.remove({ collection, query })             // delete by query
+await odb.open({ collection, query?, value? })   // get-or-create
+await odb.findOne({ collection, query })         // existing only
+await odb.findMany({ collection, query })        // list
+await odb.remove({ collection, query })          // delete by query
 await odb.close()                                   // shutdown
 ```
 

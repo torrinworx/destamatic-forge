@@ -1,5 +1,7 @@
 // drivers/memory.js
 
+import { MAX_IN_MEMORY_SCAN, matchFilter, compareBySort } from '../dsl.js';
+
 const clone = (v) => {
 	// state_tree + index should be JSON-safe already
 	return v == null ? v : JSON.parse(JSON.stringify(v));
@@ -36,6 +38,37 @@ const deepMatch = (obj, query) => {
 	}
 
 	return Object.is(obj, query);
+};
+
+const applyQuery = (col, query, { stopAfterFirst = false } = {}) => {
+	if (!query?.filter) throw new Error('memoryDriver.query: missing query.filter');
+
+	const matches = [];
+	const limit = query.limit ?? Infinity;
+	const skip = query.skip ?? 0;
+	const hasSort = Array.isArray(query.sort) && query.sort.length > 0;
+
+	let scanned = 0;
+	for (const key of col.order) {
+		scanned += 1;
+		if (scanned > MAX_IN_MEMORY_SCAN) {
+			throw new Error(`ODB query exceeded in-memory scan limit (${MAX_IN_MEMORY_SCAN})`);
+		}
+
+		const rec = col.docs.get(key);
+		if (!rec) continue;
+		if (matchFilter(rec.index, query.filter)) {
+			matches.push(clone(rec));
+			if (!hasSort && (stopAfterFirst || matches.length >= skip + limit)) break;
+		}
+	}
+
+	if (hasSort) {
+		matches.sort((a, b) => compareBySort(a.index, b.index, query.sort));
+	}
+
+	if (skip || limit !== Infinity) return matches.slice(skip, skip + limit);
+	return matches;
 };
 
 const getCollection = (collections, name) => {
@@ -135,32 +168,13 @@ export default async function memoryDriver(/* props */) {
 
 		async queryOne({ collection, query }) {
 			const col = getCollection(collections, collection);
-
-			for (const key of col.order) {
-				const rec = col.docs.get(key);
-				if (!rec) continue;
-				if (deepMatch(rec.index, query)) return clone(rec);
-			}
-
-			return false;
+			const out = applyQuery(col, query, { stopAfterFirst: true });
+			return out[0] || false;
 		},
 
-		async queryMany({ collection, query, options }) {
+		async queryMany({ collection, query }) {
 			const col = getCollection(collections, collection);
-			const out = [];
-
-			const limit = options?.limit ?? Infinity;
-
-			for (const key of col.order) {
-				const rec = col.docs.get(key);
-				if (!rec) continue;
-				if (deepMatch(rec.index, query)) {
-					out.push(clone(rec));
-					if (out.length >= limit) break;
-				}
-			}
-
-			return out;
+			return applyQuery(col, query);
 		},
 
 		async watch({ collection, key, onRecord }) {

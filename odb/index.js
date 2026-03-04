@@ -1,5 +1,12 @@
 import { OObject, OArray } from 'destam';
 import { parse, stringify } from '../common/clone.js';
+import {
+	deepNormalize,
+	normalizeQuery,
+	extractEqConditions,
+	getPathValue,
+	deepEqual,
+} from './dsl.js';
 
 /**
  * Driver contract (single driver):
@@ -25,30 +32,6 @@ import { parse, stringify } from '../common/clone.js';
  *   rev: number               // monotonically increasing revision
  * }
  */
-
-const isPlainObject = v =>
-	v && typeof v === 'object' && (v.constructor === Object || Object.getPrototypeOf(v) === null);
-
-const isUUIDLike = v =>
-	v && typeof v === 'object' && typeof v.toHex === 'function' && v.buffer instanceof Int32Array;
-
-const normalizeIndexValue = v => {
-	if (isUUIDLike(v)) return v.toHex();
-	if (v instanceof Date) return +v;
-	return v;
-};
-
-const deepNormalize = v => {
-	v = normalizeIndexValue(v);
-
-	if (Array.isArray(v)) return v.map(deepNormalize);
-	if (isPlainObject(v)) {
-		const out = {};
-		for (const k of Object.keys(v)) out[k] = deepNormalize(v[k]);
-		return out;
-	}
-	return v;
-};
 
 const makeIndex = (state) => {
 	const index = deepNormalize(JSON.parse(JSON.stringify(state)));
@@ -442,27 +425,62 @@ export const createODB = async ({ driver, throttleMs = 75, driverProps = {}, int
 		return state;
 	};
 
-	const ensureValueMatchesQuery = (value, query) => {
-		if (!query || !Object.keys(query).length) return value;
+const normalizeForCompare = (v) => deepNormalize(JSON.parse(JSON.stringify(v)));
 
-		for (const [k, v] of Object.entries(query)) {
-			if (!(k in value)) value[k] = v;
-			else {
-				// strict: query implies these fields
-				const a = normalizeIndexValue(value[k]);
-				const b = normalizeIndexValue(v);
-				if (a !== b) {
-					throw new Error(`ODB.open: value.${k} does not match query.${k}`);
-				}
-			}
+const setPathValue = (root, path, value) => {
+	const parts = path.split('.').filter(Boolean);
+	if (!parts.length) throw new Error('ODB.open: query field path is invalid');
+
+	let current = root;
+	for (let i = 0; i < parts.length; i++) {
+		const part = parts[i];
+		if (Array.isArray(current)) {
+			throw new Error('ODB.open: array paths are not supported in query fields');
 		}
-		return value;
-	};
+		if (i === parts.length - 1) {
+			current[part] = value;
+			return;
+		}
+		let next = current[part];
+		if (next == null) {
+			next = OObject({});
+			current[part] = next;
+		} else if (typeof next !== 'object') {
+			throw new Error(`ODB.open: value.${parts.slice(0, i + 1).join('.')} is not an object`);
+		}
+		current = next;
+	}
+};
+
+const ensureValueMatchesQuery = (value, query) => {
+	if (!query) return value;
+
+	const eqConditions = extractEqConditions(query.filter);
+	if (!eqConditions) {
+		throw new Error('ODB.open: query filter must be eq-only to create a document');
+	}
+
+	for (const { field, value: expected } of eqConditions) {
+		const existing = getPathValue(value, field);
+		if (existing === undefined) {
+			setPathValue(value, field, expected);
+			continue;
+		}
+
+		const a = normalizeForCompare(existing);
+		const b = normalizeForCompare(expected);
+		if (!deepEqual(a, b)) {
+			throw new Error(`ODB.open: value.${field} does not match query.${field}`);
+		}
+	}
+
+	return value;
+};
 
 	const open = async ({ collection, query = null, value = null } = {}) => {
 		if (!collection) throw new Error('ODB.open: "collection" is required.');
 
-		const normalizedQuery = query && Object.keys(query).length ? deepNormalize(query) : null;
+		const normalizedQuery = query ? normalizeQuery(query) : null;
 
 		// try find existing if query provided
 		if (normalizedQuery) {
@@ -484,18 +502,23 @@ export const createODB = async ({ driver, throttleMs = 75, driverProps = {}, int
 
 	const findOne = async ({ collection, query } = {}) => {
 		if (!collection) throw new Error('ODB.findOne: "collection" is required.');
-		if (!query || !Object.keys(query).length) throw new Error('ODB.findOne: "query" is required.');
+		if (!query) throw new Error('ODB.findOne: "query" is required.');
 
-		const rec = await d.queryOne({ collection, query: deepNormalize(query) });
+		const normalizedQuery = normalizeQuery(query);
+		const rec = await d.queryOne({ collection, query: normalizedQuery });
 		if (!rec) return false;
 		return openFromRecord({ collection, record: rec });
 	};
 
 	const findMany = async ({ collection, query, options } = {}) => {
 		if (!collection) throw new Error('ODB.findMany: "collection" is required.');
-		if (!query || !Object.keys(query).length) throw new Error('ODB.findMany: "query" is required.');
+		if (!query) throw new Error('ODB.findMany: "query" is required.');
+		if (options && Object.keys(options).length) {
+			throw new Error('ODB.findMany: "options" is not supported; use query.sort/limit/skip');
+		}
 
-		const recs = await d.queryMany({ collection, query: deepNormalize(query), options });
+		const normalizedQuery = normalizeQuery(query);
+		const recs = await d.queryMany({ collection, query: normalizedQuery });
 		const out = [];
 		for (const record of recs) {
 			const doc = await openFromRecord({ collection, record }).catch(err => {
@@ -510,9 +533,10 @@ export const createODB = async ({ driver, throttleMs = 75, driverProps = {}, int
 
 	const remove = async ({ collection, query } = {}) => {
 		if (!collection) throw new Error('ODB.remove: "collection" is required.');
-		if (!query || !Object.keys(query).length) throw new Error('ODB.remove: "query" is required.');
+		if (!query) throw new Error('ODB.remove: "query" is required.');
 
-		const rec = await d.queryOne({ collection, query: deepNormalize(query) });
+		const normalizedQuery = normalizeQuery(query);
+		const rec = await d.queryOne({ collection, query: normalizedQuery });
 		if (!rec) throw new Error('ODB.remove: document not found.');
 
 		const key = rec.key || rec.state_tree?.id;

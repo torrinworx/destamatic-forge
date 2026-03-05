@@ -79,13 +79,15 @@ export default () => {
 				})
 			});
 		},
-		listen: (port) => {
+		listen: (port, options = {}) => {
 			const listenPort = port == null ? 3000 : port;
 			return server.listen(listenPort, () => {
 				const actualPort = typeof server.address === 'function'
 					? server.address()?.port
 					: listenPort;
-				console.log(`destamatic-forge running on http://localhost:${actualPort}/ using http server.`);
+				if (options.log !== false) {
+					console.log(`destamatic-forge running on http://localhost:${actualPort}/ using http server.`);
+				}
 			});
 		}
 	}

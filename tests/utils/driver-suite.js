@@ -1,5 +1,5 @@
 import test from 'node:test';
-import { expect } from 'chai';
+import assert from 'node:assert/strict';
 import createODB from '../../odb/index.js';
 import { OObject, OArray } from 'destam';
 
@@ -56,9 +56,9 @@ export const runODBDriverTests = ({
 				query: q({ and: [eq('type', 'empty-default'), eq('v', 1)] }),
 			});
 
-			expect(doc).to.be.instanceOf(OObject);
-			expect(doc.type).to.equal('empty-default');
-			expect(doc.v).to.equal(1);
+			assert.ok(doc instanceof OObject);
+			assert.equal(doc.type, 'empty-default');
+			assert.equal(doc.v, 1);
 		} finally {
 			await db.close();
 		}
@@ -80,7 +80,7 @@ export const runODBDriverTests = ({
 				query: q(eq('kind', 'reuse')),
 			});
 
-			expect(a).to.equal(b);
+			assert.equal(a, b);
 		} finally {
 			await db.close();
 		}
@@ -99,8 +99,8 @@ export const runODBDriverTests = ({
 			await doc.$odb.flush();
 
 			const loaded = await db.findOne({ collection, query: q(eq('kind', 'persist')) });
-			expect(loaded).to.be.instanceOf(OObject);
-			expect(loaded.count).to.equal(123);
+			assert.ok(loaded instanceof OObject);
+			assert.equal(loaded.count, 123);
 		} finally {
 			await db.close();
 		}
@@ -120,11 +120,11 @@ export const runODBDriverTests = ({
 			}
 
 			const found = await db.findMany({ collection, query: q(eq('kind', 'many')) });
-			expect(found).to.be.an('array');
-			expect(found.length).to.be.at.least(3);
+			assert.ok(Array.isArray(found));
+			assert.ok(found.length >= 3);
 
 			const ns = found.map(d => d.n).sort((a, b) => a - b);
-			expect(ns[0]).to.equal(0);
+			assert.equal(ns[0], 0);
 		} finally {
 			await db.close();
 		}
@@ -154,7 +154,7 @@ export const runODBDriverTests = ({
 					and: [eq('kind', 'dsl-ops'), { field: 'score', op: 'gt', value: 10 }],
 				}),
 			});
-			expect(gt.map(d => d.score).sort((a, b) => a - b)).to.eql([12, 25]);
+			assert.deepEqual(gt.map(d => d.score).sort((a, b) => a - b), [12, 25]);
 
 			const lte = await db.findMany({
 				collection,
@@ -162,7 +162,7 @@ export const runODBDriverTests = ({
 					and: [eq('kind', 'dsl-ops'), { field: 'score', op: 'lte', value: 12 }],
 				}),
 			});
-			expect(lte.map(d => d.score).sort((a, b) => a - b)).to.eql([5, 12]);
+			assert.deepEqual(lte.map(d => d.score).sort((a, b) => a - b), [5, 12]);
 
 			const exists = await db.findMany({
 				collection,
@@ -170,7 +170,7 @@ export const runODBDriverTests = ({
 					and: [eq('kind', 'dsl-ops'), { field: 'extra', op: 'exists', value: true }],
 				}),
 			});
-			expect(exists.length).to.equal(1);
+			assert.equal(exists.length, 1);
 
 			const inList = await db.findMany({
 				collection,
@@ -181,7 +181,7 @@ export const runODBDriverTests = ({
 					],
 				}),
 			});
-			expect(inList.map(d => d.status).sort()).to.eql(['archived', 'open']);
+			assert.deepEqual(inList.map(d => d.status).sort(), ['archived', 'open']);
 
 			const ninList = await db.findMany({
 				collection,
@@ -192,7 +192,7 @@ export const runODBDriverTests = ({
 					],
 				}),
 			});
-			expect(ninList.map(d => d.status).sort()).to.eql(['closed', 'open']);
+			assert.deepEqual(ninList.map(d => d.status).sort(), ['closed', 'open']);
 
 			const neq = await db.findMany({
 				collection,
@@ -200,7 +200,7 @@ export const runODBDriverTests = ({
 					and: [eq('kind', 'dsl-ops'), { field: 'tag', op: 'neq', value: 'b' }],
 				}),
 			});
-			expect(neq.map(d => d.tag).sort()).to.eql(['a', 'c']);
+			assert.deepEqual(neq.map(d => d.tag).sort(), ['a', 'c']);
 		} finally {
 			await db.close();
 		}
@@ -240,8 +240,8 @@ export const runODBDriverTests = ({
 				}),
 			});
 
-			expect(result.length).to.equal(1);
-			expect(result[0].status).to.equal('archived');
+			assert.equal(result.length, 1);
+			assert.equal(result[0].status, 'archived');
 		} finally {
 			await db.close();
 		}
@@ -261,8 +261,8 @@ export const runODBDriverTests = ({
 				collection,
 				query: q({ and: [eq('kind', 'dsl-dot'), eq('meta.status', 'ok')] }),
 			});
-			expect(found).to.be.instanceOf(OObject);
-			expect(found.meta.status).to.equal('ok');
+			assert.ok(found instanceof OObject);
+			assert.equal(found.meta.status, 'ok');
 		} finally {
 			await db.close();
 		}
@@ -289,7 +289,7 @@ export const runODBDriverTests = ({
 				}),
 			});
 
-			expect(page.map(d => d.n)).to.eql([1, 2]);
+			assert.deepEqual(page.map(d => d.n), [1, 2]);
 		} finally {
 			await db.close();
 		}
@@ -306,9 +306,9 @@ export const runODBDriverTests = ({
 				});
 			} catch (e) {
 				threw = true;
-				expect(e.message.toLowerCase()).to.include('sort');
+				assert.ok(e.message.toLowerCase().includes('sort'));
 			}
-			expect(threw).to.equal(true);
+			assert.equal(threw, true);
 		} finally {
 			await db.close();
 		}
@@ -325,9 +325,9 @@ export const runODBDriverTests = ({
 				});
 			} catch (e) {
 				threw = true;
-				expect(e.message.toLowerCase()).to.include('value');
+				assert.ok(e.message.toLowerCase().includes('value'));
 			}
-			expect(threw).to.equal(true);
+			assert.equal(threw, true);
 		} finally {
 			await db.close();
 		}
@@ -355,9 +355,9 @@ export const runODBDriverTests = ({
 				});
 			} catch (e) {
 				threw = true;
-				expect(e.message.toLowerCase()).to.include('scan limit');
+				assert.ok(e.message.toLowerCase().includes('scan limit'));
 			}
-			expect(threw).to.equal(true);
+			assert.equal(threw, true);
 		} finally {
 			await db.close();
 		}
@@ -373,16 +373,16 @@ export const runODBDriverTests = ({
 			});
 
 			const removed = await db.remove({ collection, query: q(eq('kind', 'remove-me')) });
-			expect(removed).to.equal(true);
+			assert.equal(removed, true);
 
 			let threw = false;
 			try {
 				await db.remove({ collection, query: q(eq('kind', 'remove-me')) });
 			} catch (e) {
 				threw = true;
-				expect(e.message.toLowerCase()).to.include('not found');
+				assert.ok(e.message.toLowerCase().includes('not found'));
 			}
-			expect(threw).to.equal(true);
+			assert.equal(threw, true);
 		} finally {
 			await db.close();
 		}
@@ -400,9 +400,9 @@ export const runODBDriverTests = ({
 				});
 			} catch (e) {
 				threw = true;
-				expect(e.message.toLowerCase()).to.include('invalid state tree');
+				assert.ok(e.message.toLowerCase().includes('invalid state tree'));
 			}
-			expect(threw).to.equal(true);
+			assert.equal(threw, true);
 		} finally {
 			await db.close();
 		}
@@ -442,8 +442,8 @@ export const runODBDriverTests = ({
 			}
 			await doc2.$odb.flush();
 			const reloaded = await db2.findOne({ collection, query: q(eq('kind', 'rev-conflict')) });
-			expect(reloaded).to.be.instanceOf(OObject);
-			expect(reloaded.count).to.equal(1);
+			assert.ok(reloaded instanceof OObject);
+			assert.equal(reloaded.count, 1);
 		} finally {
 			await Promise.allSettled([db1?.close?.(), db2?.close?.()]);
 		}
@@ -513,10 +513,10 @@ export const runODBDriverTests = ({
 			await doc.$odb.flush();
 
 			const ok = await doc.$odb.reload();
-			expect(ok).to.equal(true);
-			expect(doc.items[0]).to.equal(first);
-			expect(doc.items[1]).to.equal(second);
-			expect(doc.items[0].label).to.equal('aa');
+			assert.equal(ok, true);
+			assert.equal(doc.items[0], first);
+			assert.equal(doc.items[1], second);
+			assert.equal(doc.items[0].label, 'aa');
 		} finally {
 			await db.close();
 		}
@@ -576,8 +576,8 @@ export const runODBDriverTests = ({
 				{ label: 'doc2 reordered messages' }
 			);
 
-			expect(doc2.messages[0]).to.equal(second);
-			expect(doc2.messages[1]).to.equal(first);
+			assert.equal(doc2.messages[0], second);
+			assert.equal(doc2.messages[1], first);
 		} finally {
 			await Promise.allSettled([db1?.close?.(), db2?.close?.()]);
 		}
@@ -664,7 +664,7 @@ export const runODBDriverTests = ({
 					await doc.$odb.flush();
 					await doc.$odb.reload();
 					for (const item of doc.items) {
-						expect(item).to.be.instanceOf(OObject);
+						assert.ok(item instanceof OObject);
 					}
 				}
 			}
@@ -673,12 +673,12 @@ export const runODBDriverTests = ({
 			await doc.$odb.reload();
 
 			for (const item of doc.items) {
-				expect(item).to.be.instanceOf(OObject);
+			assert.ok(item instanceof OObject);
 			}
 
 			for (const [id, obj] of identityMap.entries()) {
 				const current = doc.items.find(it => it?.observer?.id?.toHex?.() === id);
-				if (current) expect(current).to.equal(obj);
+				if (current) assert.equal(current, obj);
 			}
 		} finally {
 			await db.close();
@@ -708,13 +708,13 @@ export const runODBDriverTests = ({
 			await doc.$odb.reload();
 
 			const firstList = doc.nested[0].list;
-			expect(firstList).to.be.instanceOf(OArray);
+			assert.ok(firstList instanceof OArray);
 			firstList.push(OObject({ label: 'z' }));
 			await doc.$odb.flush();
 
 			const reloaded = await db.findOne({ collection, query: q(eq('kind', 'nested-array')) });
-			expect(reloaded.nested[0].list).to.be.instanceOf(OArray);
-			expect(reloaded.nested[0].list.length).to.equal(3);
+			assert.ok(reloaded.nested[0].list instanceof OArray);
+			assert.equal(reloaded.nested[0].list.length, 3);
 		} finally {
 			await db.close();
 		}
@@ -745,8 +745,8 @@ export const runODBDriverTests = ({
 					and: [eq('kind', 'deep-index'), eq('meta.status', 'updated')],
 				}),
 			});
-			expect(found).to.be.instanceOf(OObject);
-			expect(found.meta.status).to.equal('updated');
+			assert.ok(found instanceof OObject);
+			assert.equal(found.meta.status, 'updated');
 		} finally {
 			await db.close();
 		}
@@ -770,7 +770,7 @@ export const runODBDriverTests = ({
 
 			await Promise.all([a, b, c]);
 			await doc.$odb.reload();
-			expect(doc.count).to.equal(3);
+			assert.equal(doc.count, 3);
 		} finally {
 			await db.close();
 		}
@@ -852,7 +852,7 @@ export const runODBDriverTests = ({
 					await doc.$odb.flush();
 					await doc.$odb.reload();
 					for (const item of doc.items) {
-						expect(item).to.be.instanceOf(OObject);
+						assert.ok(item instanceof OObject);
 					}
 				}
 			}
@@ -861,12 +861,12 @@ export const runODBDriverTests = ({
 			await doc.$odb.reload();
 
 			for (const item of doc.items) {
-				expect(item).to.be.instanceOf(OObject);
+			assert.ok(item instanceof OObject);
 			}
 
 			for (const [id, obj] of identityMap.entries()) {
 				const current = doc.items.find(it => it?.observer?.id?.toHex?.() === id);
-				if (current) expect(current).to.equal(obj);
+				if (current) assert.equal(current, obj);
 			}
 		} finally {
 			await db.close();
@@ -919,7 +919,7 @@ export const runODBDriverTests = ({
 
 			for (const doc of docs) {
 				await doc.$odb.reload();
-				expect(doc.count).to.equal(lastValue);
+			assert.equal(doc.count, lastValue);
 			}
 		} finally {
 			if (dbs) await Promise.allSettled(dbs.map(db => db?.close?.()));
@@ -959,7 +959,7 @@ export const runODBDriverTests = ({
 			await doc1.$odb.flush();
 
 			await new Promise(r => setTimeout(r, 150));
-			expect(doc2.text).to.equal('a');
+			assert.equal(doc2.text, 'a');
 		} finally {
 			await Promise.allSettled([db1?.close?.(), db2?.close?.()]);
 		}

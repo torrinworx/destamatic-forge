@@ -54,7 +54,7 @@ const findFiles = async (directories) => {
  *    - deps (named export)
  *    - factory (default export)
  */
-const mapModules = async (directories, disabledNames) => {
+const mapModules = async (directories, disabledNames, logProgress = true) => {
 	const moduleFiles = await findFiles(directories);
 	let processedCount = 0;
 	const modulesMap = {};
@@ -72,17 +72,17 @@ const mapModules = async (directories, disabledNames) => {
 				// Allow disabling modules by name (prevents import/registration entirely)
 				if (disabled.has(moduleName)) {
 					processedCount++;
-					process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
+					if (logProgress) process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
 					return;
 				}
 
 				const mod = await import(filePath);
 				const hasFactory = typeof mod.default === "function";
 				if (!hasFactory) {
-					processedCount++;
-					process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
-					return;
-				}
+				processedCount++;
+				if (logProgress) process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
+				return;
+			}
 
 				// TODO: if module is a web-core default module and user specifies their own
 				// override the webcore one with the user defined one to allow for customization.
@@ -101,15 +101,15 @@ const mapModules = async (directories, disabledNames) => {
 					defaults,
 				};
 
-				processedCount++;
-				process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
-			} catch (err) {
-				console.error(`Failed to discover module at ${filePath}:`, err);
-			}
-		})
-	);
+			processedCount++;
+			if (logProgress) process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
+		} catch (err) {
+			console.error(`Failed to discover module at ${filePath}:`, err);
+		}
+	})
+);
 
-	process.stdout.write("\n");
+	if (logProgress) process.stdout.write("\n");
 	return modulesMap;
 }
 
@@ -187,6 +187,7 @@ const topoSort = (modulesMap, disabledNames) => {
  */
 const instantiateModules = async (modulesMap, sortedNames, props) => {
 	const moduleConfig = isPlainObject(props?.moduleConfig) ? props.moduleConfig : {};
+	const logProgress = props?.logProgress !== false;
 	const baseProps = isPlainObject(props) ? { ...props } : {};
 	delete baseProps.moduleConfig;
 
@@ -252,10 +253,10 @@ const instantiateModules = async (modulesMap, sortedNames, props) => {
 
 		instantiated[name] = instance;
 		loadedCount++;
-		process.stdout.write(`\rLoaded ${loadedCount}/${total} modules...`);
+		if (logProgress) process.stdout.write(`\rLoaded ${loadedCount}/${total} modules...`);
 	}
 
-	process.stdout.write("\n");
+	if (logProgress) process.stdout.write("\n");
 	return instantiated;
 };
 
@@ -275,7 +276,8 @@ const Modules = async (dirs, props = {}) => {
 			.map(([k]) => k)
 	);
 
-	const modulesMap = await mapModules(directories, disabledNames);
+	const logProgress = props?.logProgress !== false;
+	const modulesMap = await mapModules(directories, disabledNames, logProgress);
 	const sortedNames = topoSort(modulesMap, disabledNames);
 	return await instantiateModules(modulesMap, sortedNames, props);
 };

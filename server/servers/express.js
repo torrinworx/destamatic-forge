@@ -57,7 +57,7 @@ export default () => {
 			// NOTE: do NOT mount fallback yet
 		},
 
-		listen: (port) => {
+		listen: (port, options = {}) => {
 			const listenPort = port == null ? 3000 : port;
 			// order: module routes first, then Vite/static, then fallback
 			applyPre();
@@ -71,7 +71,9 @@ export default () => {
 				const actualPort = typeof nodeServer?.address === 'function'
 					? nodeServer.address()?.port
 					: listenPort;
-				console.log(`Serving on http://localhost:${actualPort}/ (express)`);
+				if (options.log !== false) {
+					console.log(`Serving on http://localhost:${actualPort}/ (express)`);
+				}
 			});
 			return nodeServer;
 		},

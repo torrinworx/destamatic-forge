@@ -54,11 +54,13 @@ const core = async ({
 		env,
 		server,
 		registerValidator,
+		logStartup: !testMode,
 	};
 
 	const modules = await Modules(modulesDir, {
 		...modProps,
 		moduleConfig,
+		logProgress: !testMode,
 		registerSchedule: (name, scheduleDef, ctx = {}) => {
 			if (typeof name !== 'string' || !name) throw new Error('registerSchedule(name, ...) name must be a non-empty string');
 			return scheduler.registerSchedule(name, scheduleDef, {
@@ -100,7 +102,7 @@ const core = async ({
 		}
 	}
 
-	const nodeServer = await server.listen(port);
+	const nodeServer = await server.listen(port, { log: !testMode });
 	const actualPort = typeof nodeServer?.address === 'function'
 		? nodeServer.address()?.port
 		: null;

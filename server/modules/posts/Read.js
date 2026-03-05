@@ -48,6 +48,9 @@ export default () => ({
 
 		const deleted = p?.deleted === true;
 		const userId = toUserId(ctx?.user);
+		const requestedUserId = typeof p?.user === 'string' && p.user.trim()
+			? p.user.trim()
+			: (typeof p?.userId === 'string' && p.userId.trim() ? p.userId.trim() : null);
 
 		if (deleted && !userId) {
 			return { error: 'Unauthorized' };
@@ -84,6 +87,32 @@ export default () => ({
 			}
 
 			return clean.map(pid => map.get(pid) ?? null);
+		}
+		if (requestedUserId && !deleted) {
+			const query = {
+				filter: {
+					and: [
+						{ field: 'user', op: 'eq', value: requestedUserId },
+						{ field: 'deleteAt', op: 'exists', value: false },
+					],
+				},
+				sort: [{ field: 'createdAt', dir: 'desc' }],
+				...(typeof limit === 'number' ? { limit } : {}),
+				...(typeof skip === 'number' ? { skip } : {}),
+			};
+
+			const posts = await odb.findMany({
+				collection: 'posts',
+				query,
+			});
+
+			const publicPosts = [];
+			for (const post of posts) {
+				const serialized = await summarizePost(post, { deleted, userId });
+				if (serialized) publicPosts.push(serialized);
+			}
+
+			return publicPosts;
 		}
 		if (!deleted) {
 			return [];

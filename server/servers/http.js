@@ -79,8 +79,14 @@ export default () => {
 				})
 			});
 		},
-		listen: (port) => server.listen(port || 3000, () => {
-			console.log(`destamatic-forge running on http://localhost:${port || 3000}/ using http server.`);
-		})
+		listen: (port) => {
+			const listenPort = port == null ? 3000 : port;
+			return server.listen(listenPort, () => {
+				const actualPort = typeof server.address === 'function'
+					? server.address()?.port
+					: listenPort;
+				console.log(`destamatic-forge running on http://localhost:${actualPort}/ using http server.`);
+			});
+		}
 	}
 };

@@ -21,6 +21,7 @@ const core = async ({
 	odbDriver,
 	odbDriverProps,
 	odbThrottleMs,
+	testMode = false,
 } = {}) => {
 	server = server ? server() : http();
 
@@ -100,6 +101,9 @@ const core = async ({
 	}
 
 	const nodeServer = await server.listen(port);
+	const actualPort = typeof nodeServer?.address === 'function'
+		? nodeServer.address()?.port
+		: null;
 	const wss = new WebSocketServer({ server: nodeServer });
 
 	wss.on('connection', async (ws, req) => {
@@ -349,29 +353,61 @@ const core = async ({
 
 	wss.on('close', () => clearInterval(interval));
 
+	const closeWithTimeout = (fn, timeoutMs = 1000) => new Promise((resolve) => {
+		let done = false;
+		const finish = () => {
+			if (done) return;
+			done = true;
+			resolve();
+		};
+		const timer = setTimeout(finish, timeoutMs);
+		try {
+			fn(() => {
+				clearTimeout(timer);
+				finish();
+			});
+		} catch {
+			clearTimeout(timer);
+			finish();
+		}
+	});
+
 	const shutdown = async () => {
 		try { scheduler.stopAll(); } catch { }
+		try { clearInterval(interval); } catch { }
 
 		for (const ws of wss.clients) {
 			try { ws.terminate(); } catch { }
 		}
-		try { wss.close(); } catch { }
+		try { await closeWithTimeout(cb => wss.close(cb), testMode ? 500 : 2000); } catch { }
 
 		try { await odb.close?.(); } catch { }
 
 		if (nodeServer) {
-			await new Promise(r => {
-				nodeServer.close(r);
-			});
+			try { await closeWithTimeout(cb => nodeServer.close(cb), testMode ? 500 : 2000); } catch { }
 		}
 
 		try { await server.close?.(); } catch { }
 
-		process.exit(0);
+		if (!testMode) process.exit(0);
 	};
 
-	process.on('SIGINT', shutdown);
-	process.on('SIGTERM', shutdown);
+	if (!testMode) {
+		process.on('SIGINT', shutdown);
+		process.on('SIGTERM', shutdown);
+	}
+
+	if (testMode) {
+		return {
+			shutdown,
+			server,
+			odb,
+			modules,
+			wss,
+			nodeServer,
+			port: actualPort ?? port,
+		};
+	}
 };
 
 export default core;

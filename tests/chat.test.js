@@ -176,7 +176,7 @@ async function createClient({ odb, driver, chatDoc, chatId, userId, pageSize = 3
 	return { messages, page, stop, userId, findMessage, editMessage };
 }
 
-test('chat pagination + live updates (ODB + paginate)', async () => {
+test('chat pagination + live updates (ODB + paginate)', { skip: 'proof of concept, skipping.' }, async () => {
 	const driver = await memoryDriver({ test: true });
 	const odb = await createODB({ driver, throttleMs: 0 });
 

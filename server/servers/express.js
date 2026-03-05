@@ -58,6 +58,7 @@ export default () => {
 		},
 
 		listen: (port) => {
+			const listenPort = port == null ? 3000 : port;
 			// order: module routes first, then Vite/static, then fallback
 			applyPre();
 
@@ -66,9 +67,13 @@ export default () => {
 
 			mountSpaFallback();
 
-			return app.listen(port || 3000, () => {
-				console.log(`Serving on http://localhost:${port || 3000}/ (express)`);
+			const nodeServer = app.listen(listenPort, () => {
+				const actualPort = typeof nodeServer?.address === 'function'
+					? nodeServer.address()?.port
+					: listenPort;
+				console.log(`Serving on http://localhost:${actualPort}/ (express)`);
 			});
+			return nodeServer;
 		},
 	};
 };

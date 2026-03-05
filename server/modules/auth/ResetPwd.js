@@ -24,7 +24,7 @@ export default () => ({
 		try {
 			resetDoc = await odb.findOne({
 				collection: 'pwdResets',
-				query: { token: cleanToken },
+				query: { filter: { field: 'token', op: 'eq', value: cleanToken } },
 			});
 			if (!resetDoc) return { error: 'invalid_or_expired_token' };
 
@@ -50,7 +50,7 @@ export default () => ({
 
 			user = await odb.findOne({
 				collection: 'users',
-				query: { id: userId },
+				query: { filter: { field: 'id', op: 'eq', value: userId } },
 			});
 			if (!user) {
 				resetDoc.status = 'orphaned';

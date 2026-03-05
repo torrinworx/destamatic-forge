@@ -17,7 +17,7 @@ const propagateStateEmailVerification = async ({ odb, userId }) => {
 	try {
 		stateDocs = await odb.findMany({
 			collection: 'state',
-			query: { user: userId },
+			query: { filter: { field: 'user', op: 'eq', value: userId } },
 		});
 	} catch (err) {
 		console.error('auth/VerifyEmail state propagation fetch error:', err);
@@ -62,10 +62,10 @@ export default (injection = {}) => {
 			let userDoc = null;
 
 			try {
-				verificationDoc = await odb.findOne({
-					collection: 'emailVerifications',
-					query: { token: cleanToken },
-				});
+			verificationDoc = await odb.findOne({
+				collection: 'emailVerifications',
+				query: { filter: { field: 'token', op: 'eq', value: cleanToken } },
+			});
 				if (!verificationDoc) return { error: 'invalid_token' };
 
 				if (verificationDoc.status === 'completed') {
@@ -91,7 +91,10 @@ export default (injection = {}) => {
 					return { error: 'invalid_token' };
 				}
 
-				userDoc = await odb.findOne({ collection: 'users', query: { id: userId } });
+			userDoc = await odb.findOne({
+				collection: 'users',
+				query: { filter: { field: 'id', op: 'eq', value: userId } },
+			});
 				if (!userDoc) {
 					verificationDoc.status = 'orphaned';
 					verificationDoc.error = 'user_not_found';

@@ -15,8 +15,7 @@
         "dev": "nodemon --watch ./server --watch ./example --exec node ./example/server.js",
         "start": "node ./example/server.js",
         "build": "npx vite build",
-        "test": "node --test",
-        "test:odb-full": "ODB_FULL=1 node --test ./tests/odb.test.js"
+        "test": "node --test"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",

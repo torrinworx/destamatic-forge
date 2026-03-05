@@ -137,7 +137,10 @@ const core = async ({
 		};
 
 		const resolveAuth = async token => {
-			const session = await odb.findOne({ collection: 'sessions', query: { uuid: token } });
+			const session = await odb.findOne({
+				collection: 'sessions',
+				query: { filter: { field: 'uuid', op: 'eq', value: token } },
+			});
 			if (!session) return null;
 
 			const expires = typeof session.expires === 'number'
@@ -150,12 +153,15 @@ const core = async ({
 			const userKey = typeof session.user === 'string' ? session.user : null;
 			if (!userKey) return null;
 
-			const user = await odb.findOne({ collection: 'users', query: { id: userKey } });
+			const user = await odb.findOne({
+				collection: 'users',
+				query: { filter: { field: 'id', op: 'eq', value: userKey } },
+			});
 			if (!user) return null;
 
 			const state = await odb.open({
 				collection: 'state',
-				query: { user: userKey },
+				query: { filter: { field: 'user', op: 'eq', value: userKey } },
 				value: OObject({ user: userKey }),
 			});
 

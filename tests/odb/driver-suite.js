@@ -23,9 +23,7 @@ const createRng = (seed = 12345) => {
 
 const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 
-const fullMode = process.env.ODB_FULL === '1' || process.env.ODB_FULL === 'true';
-const fullSkip = fullMode ? false : 'set ODB_FULL=1 to enable';
-const fullTest = (name, fn) => test(name, { skip: fullSkip }, fn);
+const fullTest = (name, fn) => test(name, fn);
 
 const eq = (field, value) => ({ field, op: 'eq', value });
 const q = (filter, extra = {}) => ({ filter, ...extra });
@@ -316,15 +314,18 @@ export const runODBDriverTests = ({
 		}
 	});
 
-	test(`[${name}] legacy query objects are rejected`, async () => {
+	test(`[${name}] invalid filter is rejected`, async () => {
 		const db = await createDb();
 		try {
 			let threw = false;
 			try {
-				await db.findOne({ collection, query: { kind: 'legacy' } });
+				await db.findOne({
+					collection,
+					query: { filter: { field: 'kind', op: 'eq' } },
+				});
 			} catch (e) {
 				threw = true;
-				expect(e.message.toLowerCase()).to.include('filter');
+				expect(e.message.toLowerCase()).to.include('value');
 			}
 			expect(threw).to.equal(true);
 		} finally {

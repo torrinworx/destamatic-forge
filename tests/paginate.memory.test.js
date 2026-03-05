@@ -60,7 +60,7 @@ test('paginate + ODB(memory): follow/older/newer/cap', async () => {
 		const msg = makeMsg();
 		const doc = await odb.open({
 			collection,
-			query: { id: msg.id },
+			query: { filter: { field: 'id', op: 'eq', value: msg.id } },
 			value: OObject(msg),
 		});
 		await doc.$odb.flush();
@@ -141,7 +141,7 @@ test('paginate + ODB(memory): follow/older/newer/cap', async () => {
 		const msg = makeMsg(); // m_0301
 		const doc = await odb.open({
 			collection,
-			query: { id: msg.id },
+			query: { filter: { field: 'id', op: 'eq', value: msg.id } },
 			value: OObject(msg),
 		});
 		await doc.$odb.flush();
@@ -158,7 +158,7 @@ test('paginate + ODB(memory): follow/older/newer/cap', async () => {
 		const msg = makeMsg();
 		const doc = await odb.open({
 			collection,
-			query: { id: msg.id },
+			query: { filter: { field: 'id', op: 'eq', value: msg.id } },
 			value: OObject(msg),
 		});
 		await doc.$odb.flush();

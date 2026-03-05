@@ -12,7 +12,7 @@ const createSession = async (odb, userId) => {
 	const session = await odb.open({
 		collection: 'sessions',
 		// session documents are keyed by uuid in index for lookup, and also stored as state.uuid
-		query: { uuid: token },
+		query: { filter: { field: 'uuid', op: 'eq', value: token } },
 		value: OObject({
 			uuid: token,
 			user: userId,
@@ -41,7 +41,10 @@ export default () => ({
 		if (!isValidEmail(email)) return { error: 'Please enter a valid email address.' };
 
 		try {
-			const user = await odb.findOne({ collection: 'users', query: { email } });
+			const user = await odb.findOne({
+				collection: 'users',
+				query: { filter: { field: 'email', op: 'eq', value: email } },
+			});
 
 			// login
 			if (user) {
@@ -87,7 +90,7 @@ export default () => ({
 
 			const state = await odb.open({
 				collection: 'state',
-				query: { user: userId },          // state is keyed by index.user
+				query: { filter: { field: 'user', op: 'eq', value: userId } }, // state is keyed by index.user
 				value: OObject({ user: userId }),
 			});
 			await state.$odb.flush();

@@ -67,7 +67,7 @@ export default ({ strings, webCore }) => {
 
 			const post = await odb.findOne({
 				collection: 'posts',
-				query: { id },
+				query: { filter: { field: 'id', op: 'eq', value: id } },
 			});
 
 			if (!post) return { error: 'Post not found.' };

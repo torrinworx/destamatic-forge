@@ -73,7 +73,10 @@ export default (injection = {}) => {
 			let verificationDoc = null;
 
 			try {
-				userDoc = await odb.findOne({ collection: 'users', query: { id: contextUserId } });
+			userDoc = await odb.findOne({
+				collection: 'users',
+				query: { filter: { field: 'id', op: 'eq', value: contextUserId } },
+			});
 				if (!userDoc) return { error: 'user_not_found' };
 
 				if (userDoc.emailVerified === true) return { error: 'already_verified' };
@@ -89,7 +92,7 @@ export default (injection = {}) => {
 
 			const recentVerifications = await odb.findMany({
 				collection: 'emailVerifications',
-				query: { userId: resolvedUserId },
+				query: { filter: { field: 'userId', op: 'eq', value: resolvedUserId } },
 			});
 
 			let countedRequests = 0;

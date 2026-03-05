@@ -76,7 +76,10 @@ export default ({ serverProps, Create: addFile, images: modImg, odb, webCore }) 
 			const token = req.cookies?.[cookieName];
 			if (!token) return res.status(401).json({ ok: false, error: messageOverrides.missingToken });
 
-			const session = await odb.findOne({ collection: sessionCollection, query: { uuid: token } });
+			const session = await odb.findOne({
+				collection: sessionCollection,
+				query: { filter: { field: 'uuid', op: 'eq', value: token } },
+			});
 			if (!session) return res.status(401).json({ ok: false, error: messageOverrides.invalidSession });
 
 			const now = Date.now();

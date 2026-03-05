@@ -99,7 +99,7 @@ export default ({ odb }) => {
 
 			const doc = await odb.open({
 				collection: 'files',
-				query: { fileId },
+				query: { filter: { field: 'fileId', op: 'eq', value: fileId } },
 				value: OObject({
 					fileId,
 					userId,

@@ -62,7 +62,7 @@ export default () => ({
 		if (id) {
 			const post = await odb.findOne({
 				collection: 'posts',
-				query: { id },
+				query: { filter: { field: 'id', op: 'eq', value: id } },
 			});
 			const serialized = await summarizePost(post, { deleted, userId });
 			if (!serialized) return false;
@@ -77,7 +77,7 @@ export default () => ({
 			for (const pid of clean) {
 				const post = await odb.findOne({
 					collection: 'posts',
-					query: { id: pid },
+					query: { filter: { field: 'id', op: 'eq', value: pid } },
 				});
 				const serialized = await summarizePost(post, { deleted, userId });
 				if (serialized) map.set(pid, serialized);
@@ -89,8 +89,10 @@ export default () => ({
 			return [];
 		}
 
-		const query = { user: userId };
-		const posts = await odb.findMany({ collection: 'posts', query });
+		const posts = await odb.findMany({
+			collection: 'posts',
+			query: { filter: { field: 'user', op: 'eq', value: userId } },
+		});
 		const deletedPosts = [];
 		for (const post of posts) {
 			const serialized = await summarizePost(post, { deleted, userId });

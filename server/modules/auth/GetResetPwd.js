@@ -42,20 +42,27 @@ export default (injection = {}) => {
 			let resetDoc = null;
 
 			try {
-				user = await odb.findOne({ collection: 'users', query: { email: normalizedEmail } });
+			user = await odb.findOne({
+				collection: 'users',
+				query: { filter: { field: 'email', op: 'eq', value: normalizedEmail } },
+			});
 				if (!user) return { ok: true };
 
 				const userId = user.$odb?.key || user.id || user.uuid || null;
 				if (!userId) return { error: 'user_not_found' };
 
 				const windowStart = Date.now() - ONE_DAY;
-				const recentResets = await odb.driver.findMany({
-					collection: 'pwdResets',
+			const recentResets = await odb.findMany({
+				collection: 'pwdResets',
+				query: {
 					filter: {
-						userId,
-						createdAt: { $gte: windowStart },
+						and: [
+							{ field: 'userId', op: 'eq', value: userId },
+							{ field: 'createdAt', op: 'gte', value: windowStart },
+						],
 					},
-				});
+				},
+			});
 				let resetCount = 0;
 				if (Array.isArray(recentResets)) {
 					for (const doc of recentResets) {

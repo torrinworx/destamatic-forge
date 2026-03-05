@@ -5,7 +5,7 @@ export default () => {
 			try {
 				const user = await odb.findOne({
 					collection: 'users',
-					query: { email },
+					query: { filter: { field: 'email', op: 'eq', value: email } },
 				});
 
 				return !!user;

@@ -26,7 +26,10 @@ export default () => ({
 		const multiIds = toArray(ids);
 
 		if (singleId) {
-			const user = await odb.findOne({ collection: 'users', query: { id: singleId } });
+			const user = await odb.findOne({
+				collection: 'users',
+				query: { filter: { field: 'id', op: 'eq', value: singleId } },
+			});
 			if (!user) return null;
 
 			const out = toUserInfo(user);
@@ -41,7 +44,10 @@ export default () => ({
 
 			if (!clean.length) return [];
 
-			const users = await odb.findMany({ collection: 'users', query: { id: { $in: clean } } });
+			const users = await odb.findMany({
+				collection: 'users',
+				query: { filter: { field: 'id', op: 'in', value: clean } },
+			});
 			const map = new Map();
 			for (const user of users) {
 				const key = user.$odb?.key ?? user.id ?? null;

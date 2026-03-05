@@ -181,7 +181,10 @@ export default ({ odb, webCore }) => ({
 			const userId = typeof state.user === 'string' && state.user ? state.user : profile.id;
 			if (typeof userId !== 'string' || !userId) return;
 
-			const user = await odb.findOne({ collection: 'users', query: { id: userId } });
+			const user = await odb.findOne({
+				collection: 'users',
+				query: { filter: { field: 'id', op: 'eq', value: userId } },
+			});
 			if (!user) return;
 
 

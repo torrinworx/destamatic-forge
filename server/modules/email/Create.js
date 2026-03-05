@@ -75,7 +75,7 @@ export default (injection = {}) => {
 
 			const userDoc = await odb.findOne({
 				collection: 'users',
-				query: { id: cleanUserId },
+				query: { filter: { field: 'id', op: 'eq', value: cleanUserId } },
 			});
 			if (!userDoc) return { error: 'user_not_found' };
 

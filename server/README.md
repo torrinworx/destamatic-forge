@@ -2,45 +2,43 @@
 
 ## Modules
 
-The server is composed from small feature modules.
+The server is composed from small feature modules and extension modules.
 
 - **Discovery**: modules are discovered by recursively scanning one or more directories for `.js` files.
   - Each file becomes a module name based on its path, e.g. `modules/posts/Create.js` -> `posts/Create`.
-  - Files that lack a default module factory export are skipped, so helper `.js` utilities can live alongside real modules without being loaded.
-- **Dependencies**: a module can declare `export const deps = ['other/module', ...]`.
-  - Modules are loaded in dependency order.
-- **Factory**: a module must `export default (injection) => ({ ...handlers })`.
-  - The `injection` includes shared server resources (e.g. `odb`, `server`, `env`) and `webCore` metadata.
+- **Implementations**: a module implementation `export default (injection) => ({ ...handlers })`.
+  - Implementation modules declare handlers like `onMessage`, `onConnection`, `validate`, `schedule`, etc.
   - Dependencies are injected by *short name* (last path segment). Example: dep `moderation/strings` injects `strings`.
+- **Extensions**: extension modules export `config` and/or `extensions` without any primary handlers.
+  - The module system allows only one extension module per module name.
+  - Extensions are injected into the implementation as `extensions`.
 
-### What A Module Can Do
+### What An Implementation Module Can Do
 
 Modules are intentionally flexible; they can provide any subset of:
 
-- `onMsg(props, ctx)`: handle websocket messages where `msg.name === '<moduleName>'`
-- `onCon(ctx)`: run when a client connects (optionally gated by auth)
+- `onMessage(props, ctx)`: handle websocket messages where `msg.name === '<moduleName>'`
+- `onConnection(ctx)`: run when a client connects (optionally gated by auth)
 - `validate`: register database validators
 - `schedule`: register scheduled jobs
 - `authenticated: false`: mark the module as callable without authentication
 
-## Configuration (`moduleConfig`)
+## Configuration (Extension Modules)
 
-When starting the server, pass a `moduleConfig` object keyed by module name:
+Modules now use extension modules to supply configuration and hook into custom behavior.
 
 ```js
-core({
-  // ...
-  moduleConfig: {
-    'posts/Create': {
-      description: { maxLength: 5000 },
-      tags: false,
-    },
-  },
-});
+// modules-config/posts/Create.js
+export const config = {
+  description: { maxLength: 5000 },
+  tags: false,
+};
 ```
 
 - **Defaults**: a module may export `export const defaults = { ... }`.
-- **Merging**: effective config is `deepMerge(defaults, moduleConfig[name])`.
+- **Merging**: effective config is `deepMerge(defaults, extension.config)`.
   - Objects merge recursively; non-objects replace.
-- **Disable entirely**: set `moduleConfig[name] = false` to prevent the module from loading at all (it is not imported).
-  - If another module depends on a disabled module, startup fails with a clear dependency error.
+- **Extensions**: extension modules can export `extensions` (a dictionary of functions).
+  - Implementations decide how to use those functions.
+- **Disable entirely**: set `moduleConfig[name] = false` to prevent the module from loading at all.
+  - `moduleConfig` no longer supports config overrides.

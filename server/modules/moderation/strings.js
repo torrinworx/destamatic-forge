@@ -136,6 +136,6 @@ export default ({ webCore }) => {
 		throw new Error(`moderation/strings: ${e.message}`);
 	}
 	return {
-		int: (input) => strings(input, cfg),
+		internal: (input) => strings(input, cfg),
 	};
 };

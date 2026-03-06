@@ -19,7 +19,7 @@ export default ({ odb }) => {
 	});
 
 	return {
-		async int({ userId, file, originalName, mimeType, meta }) {
+		async internal({ userId, file, originalName, mimeType, meta }) {
 			const isProd = process.env.NODE_ENV === 'production';
 
 			let buffer;

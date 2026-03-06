@@ -63,7 +63,7 @@ export default (injection = {}) => {
 	const getTransporter = () => transporterPromise ??= Promise.resolve(nodemailer.createTransport(cfg.transport || {}));
 
 	return {
-		int: async ({ html, userId, subject }) => {
+		internal: async ({ html, userId, subject }) => {
 			const htmlContent = ensureHtmlString(html);
 			if (!htmlContent) return { error: 'invalid_html' };
 

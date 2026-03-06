@@ -182,7 +182,7 @@ const topoSort = (modulesMap, disabledNames) => {
  * Instantiate modules in topological order.  
  *    - Instead of providing all modules in one object, we convert
  *      each dependency, e.g. "stripe/payment", into an injection like:
- *        payment: (args) => instantiated["stripe/payment"].int(args)
+ *        payment: (args) => instantiated["stripe/payment"].internal(args)
  *    - Also pass "props" (global extra data) for convenience.
  */
 const instantiateModules = async (modulesMap, sortedNames, props) => {
@@ -234,14 +234,14 @@ const instantiateModules = async (modulesMap, sortedNames, props) => {
 
 			const shortName = depName.split("/").pop();
 
-			if (typeof depInstance.int !== "function") {
+			if (typeof depInstance.internal !== "function") {
 				throw new Error(
-					`\nDependency "${depName}" does not have an int() method, but is expected to be called as a function.`
+					`\nDependency "${depName}" does not have an internal() method, but is expected to be called as a function.`
 				);
 			}
 
 			injection[shortName] = (...args) => {
-				return depInstance.int(...args);
+				return depInstance.internal(...args);
 			};
 		}
 

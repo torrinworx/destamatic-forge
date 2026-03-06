@@ -148,6 +148,6 @@ export default ({ webCore }) => {
 		throw new Error(`moderation/images: ${e.message}`);
 	}
 	return {
-		int: (params) => images(params, cfg),
+		internal: (params) => images(params, cfg),
 	};
 };

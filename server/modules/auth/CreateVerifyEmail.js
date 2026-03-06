@@ -55,57 +55,107 @@ export default ({ odb, webCore, Create }) => {
 	return {
 		authenticated: true,
 		onMessage: async (_props, { user }) => {
+			const startedAt = Date.now();
 			const contextUserId = getUserIdFromContext(user);
-			if (!contextUserId) return { error: 'unauthenticated' };
+			if (!contextUserId) {
+				console.log('auth/CreateVerifyEmail unauthenticated');
+				return { error: 'unauthenticated' };
+			}
+
+			console.log('auth/CreateVerifyEmail start', {
+				userId: contextUserId,
+			});
 
 			let userDoc = null;
 			let verificationDoc = null;
 
 			try {
-			userDoc = await odb.findOne({
-				collection: 'users',
-				query: { filter: { field: 'id', op: 'eq', value: contextUserId } },
-			});
-				if (!userDoc) return { error: 'user_not_found' };
+				userDoc = await odb.findOne({
+					collection: 'users',
+					query: { filter: { field: 'id', op: 'eq', value: contextUserId } },
+				});
+				if (!userDoc) {
+					console.log('auth/CreateVerifyEmail user_not_found', {
+						userId: contextUserId,
+						elapsedMs: Date.now() - startedAt,
+					});
+					return { error: 'user_not_found' };
+				}
 
-				if (userDoc.emailVerified === true) return { error: 'already_verified' };
+				if (userDoc.emailVerified === true) {
+					console.log('auth/CreateVerifyEmail already_verified', {
+						userId: contextUserId,
+						elapsedMs: Date.now() - startedAt,
+					});
+					return { error: 'already_verified' };
+				}
 
 				const normalizedEmail = ensureEmail(userDoc.email);
-				if (!normalizedEmail) return { error: 'missing_email' };
+				if (!normalizedEmail) {
+					console.log('auth/CreateVerifyEmail missing_email', {
+						userId: contextUserId,
+						elapsedMs: Date.now() - startedAt,
+					});
+					return { error: 'missing_email' };
+				}
 
 				const resolvedUserId = ensureId(userDoc.$odb?.key) || ensureId(userDoc.id) || contextUserId;
-				if (!resolvedUserId) return { error: 'user_not_found' };
+				if (!resolvedUserId) {
+					console.log('auth/CreateVerifyEmail user_not_found', {
+						userId: contextUserId,
+						elapsedMs: Date.now() - startedAt,
+					});
+					return { error: 'user_not_found' };
+				}
 
 			const now = Date.now();
 			const windowStart = now - ONE_DAY_MS;
 
-			const recentVerifications = await odb.findMany({
-				collection: 'emailVerifications',
-				query: { filter: { field: 'userId', op: 'eq', value: resolvedUserId } },
-			});
+				const recentVerifications = await odb.findMany({
+					collection: 'emailVerifications',
+					query: { filter: { field: 'userId', op: 'eq', value: resolvedUserId } },
+				});
 
 			let countedRequests = 0;
 			let lastRequestAt = 0;
 			let oldestRequestAt = null;
 
-			if (Array.isArray(recentVerifications)) {
-				for (const doc of recentVerifications) {
-					const createdAt = typeof doc.createdAt === 'number' ? doc.createdAt : 0;
+				if (Array.isArray(recentVerifications)) {
+					for (const doc of recentVerifications) {
+						const createdAt = typeof doc.createdAt === 'number' ? doc.createdAt : 0;
 					if (createdAt >= windowStart) {
 						countedRequests += 1;
 						if (createdAt > lastRequestAt) lastRequestAt = createdAt;
 						if (oldestRequestAt == null || createdAt < oldestRequestAt) oldestRequestAt = createdAt;
 					}
-					await disposeDoc(doc);
+						await disposeDoc(doc);
+					}
 				}
-			}
+
+				console.log('auth/CreateVerifyEmail recent_verifications', {
+					userId: resolvedUserId,
+					countedRequests,
+					lastRequestAt,
+					oldestRequestAt,
+					elapsedMs: Date.now() - startedAt,
+				});
 
 				if (maxDailyRequests > 0 && countedRequests >= maxDailyRequests) {
 					const retryAfter = oldestRequestAt != null ? Math.max(0, (oldestRequestAt + ONE_DAY_MS) - now) : ONE_DAY_MS;
+					console.log('auth/CreateVerifyEmail throttled', {
+						userId: resolvedUserId,
+						retryAfter,
+						elapsedMs: Date.now() - startedAt,
+					});
 					return { error: 'throttled', retryAfter };
 				}
 
 				if (minResendWindowMs > 0 && lastRequestAt && now - lastRequestAt < minResendWindowMs) {
+					console.log('auth/CreateVerifyEmail resend_too_soon', {
+						userId: resolvedUserId,
+						retryAfter: minResendWindowMs - (now - lastRequestAt),
+						elapsedMs: Date.now() - startedAt,
+					});
 					return { error: 'resend_too_soon', retryAfter: minResendWindowMs - (now - lastRequestAt) };
 				}
 
@@ -130,6 +180,13 @@ export default ({ odb, webCore, Create }) => {
 				});
 				await verificationDoc.$odb.flush();
 
+				console.log('auth/CreateVerifyEmail verification_created', {
+					userId: resolvedUserId,
+					verificationId: verificationDoc.$odb?.key ?? null,
+					expiresAt,
+					elapsedMs: Date.now() - startedAt,
+				});
+
 				const encodedToken = encodeURIComponent(token);
 				const verifyUrl = `${appUrl}/verify-email?token=${encodedToken}`;
 				const fallbackUrl = `${appUrl}/auth?verify=${encodedToken}`;
@@ -147,6 +204,10 @@ export default ({ odb, webCore, Create }) => {
 
 				let emailResult;
 				try {
+					console.log('auth/CreateVerifyEmail send_start', {
+						userId: resolvedUserId,
+						elapsedMs: Date.now() - startedAt,
+					});
 					emailResult = await Create({ userId: resolvedUserId, html, subject });
 				} catch (err) {
 					emailResult = { error: 'send_failed', details: err?.message ?? String(err) };
@@ -155,6 +216,11 @@ export default ({ odb, webCore, Create }) => {
 				const verificationId = verificationDoc.$odb?.key ?? null;
 
 				if (emailResult?.ok) {
+					console.log('auth/CreateVerifyEmail send_success', {
+						userId: resolvedUserId,
+						messageId: ensureString(emailResult.messageId) || null,
+						elapsedMs: Date.now() - startedAt,
+					});
 					const sentAt = Date.now();
 					verificationDoc.status = 'sent';
 					verificationDoc.sentAt = sentAt;
@@ -172,6 +238,11 @@ export default ({ odb, webCore, Create }) => {
 				}
 
 				const errorMessage = ensureString(emailResult?.details) || ensureString(emailResult?.error) || 'send_failed';
+				console.log('auth/CreateVerifyEmail send_failed', {
+					userId: resolvedUserId,
+					error: errorMessage,
+					elapsedMs: Date.now() - startedAt,
+				});
 				verificationDoc.status = 'email_failed';
 				verificationDoc.error = errorMessage;
 				verificationDoc.sentAt = null;
@@ -179,9 +250,16 @@ export default ({ odb, webCore, Create }) => {
 				await verificationDoc.$odb.flush();
 				return { error: 'email_failed', details: errorMessage };
 			} catch (err) {
-				console.error('auth/CreateVerifyEmail error:', err);
+				console.error('auth/CreateVerifyEmail error:', err, {
+					userId: contextUserId,
+					elapsedMs: Date.now() - startedAt,
+				});
 				return { error: 'internal_error' };
 			} finally {
+				console.log('auth/CreateVerifyEmail done', {
+					userId: contextUserId,
+					elapsedMs: Date.now() - startedAt,
+				});
 				await disposeDoc(verificationDoc);
 				await disposeDoc(userDoc);
 			}

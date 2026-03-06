@@ -218,7 +218,7 @@ export const closeWS = () => {
 	try { ws?.close(); } catch { }
 };
 
-export const modReq = (name, props, { timeout = 15000 } = {}) => {
+export const modReq = (name, props, { timeout = 60000 } = {}) => {
 	if (name === 'sync') {
 		return Promise.reject(new Error(`modReq('sync') is not supported; 'sync' is reserved.`));
 	}

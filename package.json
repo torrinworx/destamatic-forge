@@ -27,7 +27,9 @@
         "uuid": "^11.0.3",
         "ws": "^8.18.0",
         "leaflet": "^1.9.4",
-        "@aws-sdk/client-s3": "^3.971.0"
+        "@aws-sdk/client-s3": "^3.971.0",
+        "multer": "^2.0.2",
+        "cookie-parser": "^1.4.7"
     },
     "optionalDependencies": {
         "nodemailer": "^8.0.1"

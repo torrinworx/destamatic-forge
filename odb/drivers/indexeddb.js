@@ -1,5 +1,3 @@
-// drivers/indexeddb.js
-
 import { MAX_IN_MEMORY_SCAN, matchFilter, compareBySort } from '../dsl.js';
 
 const isPlainObject = v =>

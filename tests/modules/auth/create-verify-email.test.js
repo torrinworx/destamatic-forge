@@ -1,17 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { OObject } from 'destam';
 
 import { startCoreTest } from '../../utils/core-harness.js';
 import { createWsClient } from '../../utils/ws-client.js';
 
-const emailConfig = {
-	'email/Create': {
-		transport: { jsonTransport: true },
-		from: 'no-reply@test.local',
-	},
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const fixturesDir = path.resolve(__dirname, '..', '..', 'utils', 'modules-config');
 
 const createUserWithId = async (odb, { email, name, emailVerified = false }) => {
 	const user = await odb.open({
@@ -50,7 +49,7 @@ const createSession = async (odb, { userId, token }) => {
 test('auth/CreateVerifyEmail issues verification email for authed user', async () => {
 	const core = await startCoreTest({
 		modules: ['auth/CreateVerifyEmail'],
-		moduleConfig: emailConfig,
+		modulesDir: fixturesDir,
 		odbThrottleMs: 0,
 	});
 
@@ -83,7 +82,7 @@ test('auth/CreateVerifyEmail issues verification email for authed user', async (
 test('auth/CreateVerifyEmail rejects already verified users', async () => {
 	const core = await startCoreTest({
 		modules: ['auth/CreateVerifyEmail'],
-		moduleConfig: emailConfig,
+		modulesDir: fixturesDir,
 		odbThrottleMs: 0,
 	});
 

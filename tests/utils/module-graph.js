@@ -48,6 +48,8 @@ export const createModuleIndex = async (directories) => {
 		const moduleRoot = dirs.find(dir => filePath.startsWith(dir));
 		if (!moduleRoot) continue;
 		const moduleName = resolveModuleName(moduleRoot, filePath);
+		const mod = await import(pathToFileURL(filePath).href);
+		if (typeof mod?.default !== 'function') continue;
 		if (index.has(moduleName)) {
 			throw new Error(`Duplicate module name found: "${moduleName}"`);
 		}

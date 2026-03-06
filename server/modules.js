@@ -68,6 +68,8 @@ const mapModules = async (directories, disabledNames, logProgress = true) => {
 				if (!moduleRoot) throw new Error(`Unable to resolve module root for: ${filePath}`);
 				const relativePath = path.relative(moduleRoot, filePath);
 				const moduleName = relativePath.replace(/\\/g, "/").replace(/\.js$/, "");
+				const dirIndex = directories.indexOf(moduleRoot);
+				if (dirIndex === -1) throw new Error(`Unable to resolve module root index for: ${filePath}`);
 
 				// Allow disabling modules by name (prevents import/registration entirely)
 				if (disabled.has(moduleName)) {
@@ -78,36 +80,56 @@ const mapModules = async (directories, disabledNames, logProgress = true) => {
 
 				const mod = await import(filePath);
 				const hasFactory = typeof mod.default === "function";
-				if (!hasFactory) {
-				processedCount++;
-				if (logProgress) process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
-				return;
-			}
-
-				// TODO: if module is a web-core default module and user specifies their own
-				// override the webcore one with the user defined one to allow for customization.
-				if (modulesMap[moduleName]) {
-					throw new Error(`Duplicate module name found: "${moduleName}". Each module name must be unique.`);
-				}
-
 				const deps = Array.isArray(mod.deps) ? mod.deps : [];
 				const defaults = isPlainObject(mod.defaults) ? mod.defaults : null;
+				const config = isPlainObject(mod.config) ? mod.config : null;
+				const extensions = isPlainObject(mod.extensions) ? mod.extensions : null;
+				const hasExtension = !!(config || extensions);
 
-				modulesMap[moduleName] = {
-					directory,
-					filePath,
-					deps,
-					factory: mod.default,
-					defaults,
-				};
+				if (!hasFactory && !hasExtension) {
+					processedCount++;
+					if (logProgress) process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
+					return;
+				}
 
-			processedCount++;
-			if (logProgress) process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
-		} catch (err) {
-			console.error(`Failed to discover module at ${filePath}:`, err);
-		}
-	})
-);
+				if (!modulesMap[moduleName]) {
+					modulesMap[moduleName] = {
+						implementations: [],
+						extension: null,
+					};
+				}
+
+				if (hasExtension) {
+					if (modulesMap[moduleName].extension) {
+						throw new Error(`Duplicate extension module found for "${moduleName}".`);
+					}
+					modulesMap[moduleName].extension = {
+						directory,
+						filePath,
+						dirIndex,
+						config,
+						extensions,
+					};
+				}
+
+				if (hasFactory) {
+					modulesMap[moduleName].implementations.push({
+						directory,
+						filePath,
+						dirIndex,
+						deps,
+						defaults,
+						factory: mod.default,
+					});
+				}
+
+				processedCount++;
+				if (logProgress) process.stdout.write(`\rProcessed ${processedCount}/${moduleFiles.length} module files...`);
+			} catch (err) {
+				console.error(`Failed to discover module at ${filePath}:`, err);
+			}
+		})
+	);
 
 	if (logProgress) process.stdout.write("\n");
 	return modulesMap;
@@ -200,7 +222,7 @@ const instantiateModules = async (modulesMap, sortedNames, props) => {
 			// Defensive: discovery should have skipped, but keep consistent semantics.
 			continue;
 		}
-		const { deps, factory, defaults } = modulesMap[name];
+		const { deps, factory, defaults, extension } = modulesMap[name];
 		if (!factory) {
 			console.warn(
 				`\nNo valid default export function for module "${name}". Skipping instantiation.`
@@ -209,13 +231,13 @@ const instantiateModules = async (modulesMap, sortedNames, props) => {
 		}
 
 		const userCfg = moduleConfig[name];
-		if (userCfg !== undefined && !isPlainObject(userCfg)) {
+		if (userCfg !== undefined && userCfg !== false) {
 			throw new Error(
-				`\nInvalid moduleConfig for "${name}": expected a plain object, undefined, or false (to disable).`
+				`\nInvalid moduleConfig for "${name}": only false is supported. Use module extensions for config.`
 			);
 		}
 
-		const effectiveConfig = deepMerge(defaults || {}, userCfg || {});
+		const effectiveConfig = deepMerge(defaults || {}, extension?.config || {});
 
 		// Build the injection object
 		const injection = {
@@ -224,6 +246,7 @@ const instantiateModules = async (modulesMap, sortedNames, props) => {
 				name,
 				config: effectiveConfig,
 			},
+			extensions: extension?.extensions || {},
 		};
 
 		for (const depName of deps) {
@@ -278,8 +301,46 @@ const Modules = async (dirs, props = {}) => {
 
 	const logProgress = props?.logProgress !== false;
 	const modulesMap = await mapModules(directories, disabledNames, logProgress);
-	const sortedNames = topoSort(modulesMap, disabledNames);
-	return await instantiateModules(modulesMap, sortedNames, props);
+	const defaultDirIndex = directories.length - 1;
+	const resolvedMap = {};
+
+	for (const [name, entry] of Object.entries(modulesMap)) {
+		const impls = entry.implementations || [];
+		if (!impls.length) {
+			if (entry.extension) {
+				throw new Error(`Extension module found for "${name}" without any implementation.`);
+			}
+			continue;
+		}
+
+		const seenDir = new Set();
+		for (const impl of impls) {
+			if (seenDir.has(impl.dirIndex)) {
+				throw new Error(`Duplicate module implementation found for "${name}" in "${impl.directory}".`);
+			}
+			seenDir.add(impl.dirIndex);
+		}
+
+		const userImpls = impls.filter(impl => impl.dirIndex < defaultDirIndex);
+		if (userImpls.length > 1) {
+			throw new Error(`Multiple override modules found for "${name}". Only one override is allowed.`);
+		}
+
+		let chosen = null;
+		if (userImpls.length === 1) {
+			chosen = userImpls[0];
+		} else {
+			chosen = impls.reduce((best, item) => (item.dirIndex < best.dirIndex ? item : best), impls[0]);
+		}
+
+		resolvedMap[name] = {
+			...chosen,
+			extension: entry.extension,
+		};
+	}
+
+	const sortedNames = topoSort(resolvedMap, disabledNames);
+	return await instantiateModules(resolvedMap, sortedNames, props);
 };
 
 export default Modules;

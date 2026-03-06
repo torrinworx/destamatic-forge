@@ -2,7 +2,7 @@ export const defaults = {
 	// If set to false, the scheduler module will not register any jobs.
 	schedule: {
 		// Run every 30 days by default.
-		// Users can override via moduleConfig['posts/Scheduler'].schedule.every (ms) or .schedule.cron.
+		// Users can override via module extension config (schedule.every or schedule.cron).
 		every: 1000 * 60 * 60 * 24 * 30,
 		runOnStart: false,
 		tz: 'UTC',

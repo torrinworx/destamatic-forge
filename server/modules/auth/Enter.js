@@ -28,8 +28,10 @@ const createSession = async (odb, userId) => {
 export default () => ({
 	authenticated: false,
 
-	onMessage: async ({ email, name, password }, { odb, onEnter }) => {
+	onMessage: async (props, { odb, extensions }) => {
 		const isDev = isDevEnv();
+		const input = props || {};
+		let { email, name, password, ...extra } = input;
 
 		email = typeof email === 'string' ? email.trim().toLowerCase() : '';
 		name = typeof name === 'string' ? name.trim() : '';
@@ -70,9 +72,21 @@ export default () => ({
 
 			const hashedPassword = await hashPassword(password);
 
+			let extensionPatch = null;
+			if (typeof extensions?.userProps === 'function') {
+				const result = await extensions.userProps({
+					props: input,
+					extra,
+					ctx: { odb },
+				});
+				if (result?.error) return { error: result.error };
+				if (result && typeof result === 'object') extensionPatch = result;
+			}
+
 			const newUser = await odb.open({
 				collection: 'users',
 				value: OObject({
+					...(extensionPatch || {}),
 					email,
 					name,
 					password: hashedPassword,
@@ -92,8 +106,6 @@ export default () => ({
 				value: OObject({ user: userId }),
 			});
 			await state.$odb.flush();
-
-			await onEnter?.({ email, name, user: newUser });
 
 			return { token: await createSession(odb, userId) };
 		} catch (error) {

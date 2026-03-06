@@ -5,16 +5,14 @@ export const defaults = {
 };
 
 export default ({ webCore }) => {
-	const cfg = webCore?.config;
-
-	let deletionGraceMs = cfg?.deletionGraceMs;
+	let deletionGraceMs = webCore.config.deletionGraceMs;
 	if (!Number.isFinite(deletionGraceMs) || deletionGraceMs < 0) {
 		deletionGraceMs = defaults.deletionGraceMs;
 	}
 	deletionGraceMs = Math.floor(deletionGraceMs);
 
 	return {
-		onMsg: async ({ id }, { user, odb }) => {
+		onMessage: async ({ id }, { user, odb }) => {
 			if (typeof id !== 'string' || !id.trim()) {
 				return { error: 'Invalid id. Must be a non-empty string.' };
 			}

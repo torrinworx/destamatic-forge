@@ -12,9 +12,7 @@ const disposeDoc = async (doc) => {
 export default () => ({
 	authenticated: false,
 
-	onMsg: async ({ token, password } = {}, { odb } = {}) => {
-		if (!odb) throw new Error('auth/ResetPwd: odb is required');
-
+	onMessage: async ({ token, password } = {}, { odb } = {}) => {
 		const cleanToken = ensureString(token);
 		if (!cleanToken) return { error: 'invalid_token' };
 

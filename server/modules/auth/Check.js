@@ -1,7 +1,7 @@
 export default () => {
 	return {
 		authenticated: false,
-		onMsg: async ({ email }, { odb }) => {
+		onMessage: async ({ email }, { odb }) => {
 			try {
 				const user = await odb.findOne({
 					collection: 'users',

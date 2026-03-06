@@ -50,11 +50,10 @@ const propagateStateEmailVerification = async ({ odb, userId }) => {
 
 export default (injection = {}) => {
 	const { odb } = injection;
-	if (!odb) throw new Error('auth/VerifyEmail: odb is required');
 
 	return {
 		authenticated: false,
-		onMsg: async ({ token } = {}) => {
+		onMessage: async ({ token } = {}) => {
 			const cleanToken = ensureString(token);
 			if (!cleanToken) return { error: 'invalid_token' };
 

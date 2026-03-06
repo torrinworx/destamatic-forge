@@ -37,17 +37,17 @@ export default ({ serverProps, Create: addFile, images: modImg, odb, webCore }) 
 	const app = serverProps.app;
 	app.use(cookieParser());
 
-	const cfg = webCore?.config ?? {};
-
-	const route = typeof cfg.route === 'string' && cfg.route ? cfg.route : defaults.route;
-	const fieldName = typeof cfg.fieldName === 'string' && cfg.fieldName ? cfg.fieldName : defaults.fieldName;
-	const userMaxBytes = Number.isFinite(cfg.maxBytes) ? Math.floor(cfg.maxBytes) : null;
+	const route = typeof webCore.config.route === 'string' && webCore.config.route ? webCore.config.route : defaults.route;
+	const fieldName = typeof webCore.config.fieldName === 'string' && webCore.config.fieldName ? webCore.config.fieldName : defaults.fieldName;
+	const userMaxBytes = Number.isFinite(webCore.config.maxBytes) ? Math.floor(webCore.config.maxBytes) : null;
 	const maxBytes = userMaxBytes && userMaxBytes > 0 ? userMaxBytes : defaults.maxBytes;
-	const allowedMimeTypes = Array.isArray(cfg.allowedMimeTypes) ? cfg.allowedMimeTypes : defaults.allowedMimeTypes;
+	const allowedMimeTypes = Array.isArray(webCore.config.allowedMimeTypes) ? webCore.config.allowedMimeTypes : defaults.allowedMimeTypes;
 	const allowedMimes = new Set(allowedMimeTypes);
-	const cookieName = typeof cfg.cookieName === 'string' && cfg.cookieName ? cfg.cookieName : defaults.cookieName;
-	const sessionCollection = typeof cfg.sessionCollection === 'string' && cfg.sessionCollection ? cfg.sessionCollection : defaults.sessionCollection;
-	const messageOverrides = isPlainObject(cfg.messages) ? { ...defaults.messages, ...cfg.messages } : defaults.messages;
+	const cookieName = typeof webCore.config.cookieName === 'string' && webCore.config.cookieName ? webCore.config.cookieName : defaults.cookieName;
+	const sessionCollection = typeof webCore.config.sessionCollection === 'string' && webCore.config.sessionCollection ? webCore.config.sessionCollection : defaults.sessionCollection;
+	const messageOverrides = isPlainObject(webCore.config.messages)
+		? { ...defaults.messages, ...webCore.config.messages }
+		: defaults.messages;
 
 	const upload = multer({
 		storage: multer.memoryStorage(),

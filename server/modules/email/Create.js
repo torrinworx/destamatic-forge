@@ -37,7 +37,7 @@ const disposeDoc = async (doc) => {
 };
 
 const buildConfig = (webCore) => {
-	const overrides = isPlainObject(webCore?.config) ? webCore.config : {};
+	const overrides = isPlainObject(webCore.config) ? webCore.config : {};
 	const transportOverrides = isPlainObject(overrides.transport) ? overrides.transport : {};
 	const authOverrides = isPlainObject(transportOverrides.auth) ? transportOverrides.auth : {};
 	const transport = {
@@ -56,7 +56,6 @@ const buildConfig = (webCore) => {
 
 export default (injection = {}) => {
 	const { odb, webCore } = injection;
-	if (!odb) throw new Error('email/Create: odb is required');
 
 	const cfg = buildConfig(webCore);
 	let transporterPromise = null;

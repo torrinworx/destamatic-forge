@@ -4,19 +4,14 @@ import UUID from 'destam/UUID.js';
 export const deps = ['email/Create'];
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
-const DEFAULT_TOKEN_TTL_MS = 1000 * 60 * 60 * 24;
-const MAX_DAILY_REQUESTS = 5;
-const MIN_RESEND_WINDOW_MS = 1000 * 60;
-const DEFAULT_SUBJECT = 'Verify your email address';
-const DEFAULT_APP_URL = 'https://app.example.com';
 
 export const defaults = {
-	subject: DEFAULT_SUBJECT,
-	tokenTtlMs: DEFAULT_TOKEN_TTL_MS,
-	maxDailyRequests: MAX_DAILY_REQUESTS,
-	minResendWindowMs: MIN_RESEND_WINDOW_MS,
+	subject: 'Verify your email address',
+	tokenTtlMs: 1000 * 60 * 60 * 24,
+	maxDailyRequests: 5,
+	minResendWindowMs: 1000 * 60,
 	urls: {
-		app: DEFAULT_APP_URL,
+		app: 'https://app.example.com',
 	},
 };
 
@@ -50,22 +45,16 @@ const getUserIdFromContext = user => {
 	return typeof user.id === 'string' && user.id ? user.id : null;
 };
 
-export default (injection = {}) => {
-	const { odb, webCore, Create } = injection;
-	if (!odb) throw new Error('auth/CreateVerifyEmail: odb is required');
-	if (typeof Create !== 'function') throw new Error('auth/CreateVerifyEmail: email/Create dependency missing');
-
-	const cfg = webCore?.config ?? {};
-	const subject = ensureString(cfg.subject) || DEFAULT_SUBJECT;
-	const tokenTtlMs = clampPositiveInt(cfg.tokenTtlMs, DEFAULT_TOKEN_TTL_MS);
-	const maxDailyRequests = clampPositiveInt(cfg.maxDailyRequests, MAX_DAILY_REQUESTS);
-	const minResendWindowMs = clampPositiveInt(cfg.minResendWindowMs, MIN_RESEND_WINDOW_MS);
-	const urlsCfg = cfg.urls ?? {};
-	const appUrl = sanitizeBaseUrl(urlsCfg.app ?? DEFAULT_APP_URL) ?? DEFAULT_APP_URL;
+export default ({ odb, webCore, Create }) => {
+	const subject = ensureString(webCore.config.subject) || defaults.subject;
+	const tokenTtlMs = clampPositiveInt(webCore.config.tokenTtlMs, defaults.tokenTtlMs);
+	const maxDailyRequests = clampPositiveInt(webCore.config.maxDailyRequests, defaults.maxDailyRequests);
+	const minResendWindowMs = clampPositiveInt(webCore.config.minResendWindowMs, defaults.minResendWindowMs);
+	const appUrl = sanitizeBaseUrl(webCore.config.urls?.app ?? defaults.urls.app) ?? defaults.urls.app;
 
 	return {
 		authenticated: true,
-		onMsg: async (_props, { user }) => {
+		onMessage: async (_props, { user }) => {
 			const contextUserId = getUserIdFromContext(user);
 			if (!contextUserId) return { error: 'unauthenticated' };
 

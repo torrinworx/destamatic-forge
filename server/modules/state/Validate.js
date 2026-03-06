@@ -133,7 +133,7 @@ export default ({ odb, webCore }) => ({
 		register: async state => {
 			if (!state || typeof state !== 'object') return;
 
-			const cfg = ensurePlainObject(webCore?.config);
+			const cfg = ensurePlainObject(webCore.config);
 			const throttleMs = Number.isFinite(cfg.throttleMs) && cfg.throttleMs >= 0 ? Math.floor(cfg.throttleMs) : 0;
 
 			const userToProfileCfg = ensurePlainObject(cfg.userToProfile);

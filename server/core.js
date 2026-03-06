@@ -199,17 +199,17 @@ const core = async ({
 			}
 		};
 
-		const runModuleOnCon = async () => {
+		const runModuleOnConnection = async () => {
 			for (const [name, mod] of Object.entries(modules)) {
 				if (ranOnCon.has(name)) continue;
-				if (typeof mod?.onCon !== 'function') continue;
+				if (typeof mod?.onConnection !== 'function') continue;
 
 				if (!authed && mod.authenticated !== false) continue;
 
 				ranOnCon.add(name);
 
 				try {
-					const ret = await mod.onCon({
+					const ret = await mod.onConnection({
 						sync,
 						user,
 						token,
@@ -217,7 +217,7 @@ const core = async ({
 					});
 					addCleanup(ret);
 				} catch (err) {
-					console.error(`module onCon error (${name})`, err);
+					console.error(`module onConnection error (${name})`, err);
 				}
 			}
 		};
@@ -249,7 +249,7 @@ const core = async ({
 
 			if (!token) {
 				send({ name: 'auth', ok: false });
-				await runModuleOnCon();
+				await runModuleOnConnection();
 				return false;
 			}
 
@@ -259,7 +259,7 @@ const core = async ({
 			} catch (e) {
 				console.error('auth resolve error:', e);
 				send({ name: 'auth', ok: false });
-				await runModuleOnCon();
+				await runModuleOnConnection();
 				return false;
 			}
 
@@ -267,7 +267,7 @@ const core = async ({
 
 			if (!auth) {
 				send({ name: 'auth', ok: false });
-				await runModuleOnCon();
+				await runModuleOnConnection();
 				return false;
 			}
 
@@ -279,7 +279,7 @@ const core = async ({
 
 			send({ name: 'auth', ok: true, token });
 
-			await runModuleOnCon();
+			await runModuleOnConnection();
 
 			return true;
 		};
@@ -304,7 +304,7 @@ const core = async ({
 			}
 
 			const module = modules[msg?.name];
-			if (!module?.onMsg) {
+			if (!module?.onMessage) {
 				return send({ error: `Module not found: ${msg?.name}`, id: msg?.id });
 			}
 
@@ -313,7 +313,7 @@ const core = async ({
 			}
 
 			try {
-				const result = await module.onMsg(
+				const result = await module.onMessage(
 					msg.props,
 					{
 						sync,

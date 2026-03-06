@@ -41,11 +41,9 @@ const summarizePost = async (post, { deleted, userId }) => {
 export default () => ({
 	authenticated: false,
 
-	onMsg: async (props, ctx) => {
+	onMessage: async (props, ctx) => {
 		const p = props || {};
 		const odb = ctx?.odb;
-		if (!odb) throw new Error('posts/Read: odb not provided');
-
 		const deleted = p?.deleted === true;
 		const userId = toUserId(ctx?.user);
 		const requestedUserId = typeof p?.user === 'string' && p.user.trim()

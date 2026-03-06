@@ -55,29 +55,38 @@ const createCache = (maxSize) => {
 };
 
 export default ({ webCore } = {}) => {
-	const cfg = webCore?.config || {};
-	const messages = isPlainObject(cfg.messages) ? { ...defaults.messages, ...cfg.messages } : defaults.messages;
+	const messages = isPlainObject(webCore.config.messages)
+		? { ...defaults.messages, ...webCore.config.messages }
+		: defaults.messages;
 
-	const baseUrl = typeof cfg.baseUrl === 'string' && cfg.baseUrl ? cfg.baseUrl : defaults.baseUrl;
-	const userAgent = typeof cfg.userAgent === 'string' && cfg.userAgent ? cfg.userAgent : defaults.userAgent;
-	const referer = typeof cfg.referer === 'string' && cfg.referer ? cfg.referer : defaults.referer;
-	const acceptLanguage = typeof cfg.acceptLanguage === 'string' && cfg.acceptLanguage ? cfg.acceptLanguage : defaults.acceptLanguage;
-	const email = typeof cfg.email === 'string' && cfg.email ? cfg.email : defaults.email;
-	const minQueryLength = Number.isFinite(cfg.minQueryLength) ? Math.max(1, Math.floor(cfg.minQueryLength)) : defaults.minQueryLength;
-	const maxResults = Number.isFinite(cfg.maxResults) ? clamp(Math.floor(cfg.maxResults), 1, 50) : defaults.maxResults;
-	const cacheTtlMs = Number.isFinite(cfg.cacheTtlMs) ? Math.max(0, Math.floor(cfg.cacheTtlMs)) : defaults.cacheTtlMs;
-	const cacheMaxSize = Number.isFinite(cfg.cacheMaxSize) ? clamp(Math.floor(cfg.cacheMaxSize), 1, 5000) : defaults.cacheMaxSize;
-	const globalRateLimitMs = Number.isFinite(cfg.globalRateLimitMs)
-		? Math.max(0, Math.floor(cfg.globalRateLimitMs))
+	const baseUrl = typeof webCore.config.baseUrl === 'string' && webCore.config.baseUrl ? webCore.config.baseUrl : defaults.baseUrl;
+	const userAgent = typeof webCore.config.userAgent === 'string' && webCore.config.userAgent ? webCore.config.userAgent : defaults.userAgent;
+	const referer = typeof webCore.config.referer === 'string' && webCore.config.referer ? webCore.config.referer : defaults.referer;
+	const acceptLanguage = typeof webCore.config.acceptLanguage === 'string' && webCore.config.acceptLanguage ? webCore.config.acceptLanguage : defaults.acceptLanguage;
+	const email = typeof webCore.config.email === 'string' && webCore.config.email ? webCore.config.email : defaults.email;
+	const minQueryLength = Number.isFinite(webCore.config.minQueryLength)
+		? Math.max(1, Math.floor(webCore.config.minQueryLength))
+		: defaults.minQueryLength;
+	const maxResults = Number.isFinite(webCore.config.maxResults)
+		? clamp(Math.floor(webCore.config.maxResults), 1, 50)
+		: defaults.maxResults;
+	const cacheTtlMs = Number.isFinite(webCore.config.cacheTtlMs)
+		? Math.max(0, Math.floor(webCore.config.cacheTtlMs))
+		: defaults.cacheTtlMs;
+	const cacheMaxSize = Number.isFinite(webCore.config.cacheMaxSize)
+		? clamp(Math.floor(webCore.config.cacheMaxSize), 1, 5000)
+		: defaults.cacheMaxSize;
+	const globalRateLimitMs = Number.isFinite(webCore.config.globalRateLimitMs)
+		? Math.max(0, Math.floor(webCore.config.globalRateLimitMs))
 		: defaults.globalRateLimitMs;
-	const ipRateLimitMs = Number.isFinite(cfg.ipRateLimitMs)
-		? Math.max(0, Math.floor(cfg.ipRateLimitMs))
+	const ipRateLimitMs = Number.isFinite(webCore.config.ipRateLimitMs)
+		? Math.max(0, Math.floor(webCore.config.ipRateLimitMs))
 		: defaults.ipRateLimitMs;
-	const requestTimeoutMs = Number.isFinite(cfg.requestTimeoutMs)
-		? Math.max(1000, Math.floor(cfg.requestTimeoutMs))
+	const requestTimeoutMs = Number.isFinite(webCore.config.requestTimeoutMs)
+		? Math.max(1000, Math.floor(webCore.config.requestTimeoutMs))
 		: defaults.requestTimeoutMs;
-	const attributionText = typeof cfg.attributionText === 'string' && cfg.attributionText
-		? cfg.attributionText
+	const attributionText = typeof webCore.config.attributionText === 'string' && webCore.config.attributionText
+		? webCore.config.attributionText
 		: defaults.attributionText;
 
 	const cache = createCache(cacheMaxSize);
@@ -104,7 +113,7 @@ export default ({ webCore } = {}) => {
 
 	return {
 		authenticated: false,
-		onMsg: async ({ q, limit } = {}, { ip } = {}) => {
+		onMessage: async ({ q, limit } = {}, { ip } = {}) => {
 			try {
 				const query = normalizeQuery(q);
 				if (!query) return { ok: false, error: messages.missingQuery };

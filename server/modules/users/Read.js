@@ -19,9 +19,7 @@ const toUserInfo = (user) => ({
 export default () => ({
 	authenticated: false,
 
-	onMsg: async ({ id, ids }, { odb }) => {
-		if (!odb) throw new Error('users/Read: odb not provided');
-
+	onMessage: async ({ id, ids }, { odb }) => {
 		const singleId = normalizeId(id);
 		const multiIds = toArray(ids);
 

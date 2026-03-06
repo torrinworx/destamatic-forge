@@ -23,18 +23,16 @@ const clampPositiveInt = (value, fallback) => (Number.isFinite(value) && value >
 
 export default (injection = {}) => {
 	const { odb, webCore, Create } = injection;
-	if (!odb) throw new Error('auth/GetResetPwd: odb is required');
-	if (typeof Create !== 'function') throw new Error('auth/GetResetPwd: email/Create dependency missing');
 
-	const clientUrl = ensureString(webCore?.config?.clientUrl) || defaults.clientUrl;
-	const tokenTtlMs = clampPositiveInt(webCore?.config?.tokenTtlMs, defaults.tokenTtlMs);
-	const maxEmailsPerDay = clampPositiveInt(webCore?.config?.maxEmailsPerDay, defaults.maxEmailsPerDay);
-	const subject = ensureString(webCore?.config?.subject) || defaults.subject;
+	const clientUrl = ensureString(webCore.config.clientUrl) || defaults.clientUrl;
+	const tokenTtlMs = clampPositiveInt(webCore.config.tokenTtlMs, defaults.tokenTtlMs);
+	const maxEmailsPerDay = clampPositiveInt(webCore.config.maxEmailsPerDay, defaults.maxEmailsPerDay);
+	const subject = ensureString(webCore.config.subject) || defaults.subject;
 
 	return {
 		authenticated: false,
 
-		onMsg: async ({ email }) => {
+		onMessage: async ({ email }) => {
 			const normalizedEmail = ensureString(email).toLowerCase();
 			if (!normalizedEmail) return { error: 'invalid_email' };
 

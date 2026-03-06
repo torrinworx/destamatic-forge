@@ -18,13 +18,11 @@ const coerceImages = (input) => {
 };
 
 export default ({ strings, webCore }) => {
-	const cfg = webCore?.config;
+	const nameCfg = webCore.config.name;
+	const descCfg = webCore.config.description;
 
-	const nameCfg = cfg?.name;
-	const descCfg = cfg?.description;
-
-	const tagsCfg = cfg?.tags;
-	const imagesCfg = cfg?.images;
+	const tagsCfg = webCore.config.tags;
+	const imagesCfg = webCore.config.images;
 
 	const nameEnabled = nameCfg !== false;
 	const descEnabled = descCfg !== false;
@@ -58,7 +56,7 @@ export default ({ strings, webCore }) => {
 			: defaults.description.maxLength;
 
 	return {
-		onMsg: async (props, { user, odb }) => {
+		onMessage: async (props, { user, odb }) => {
 			const p = props || {};
 			const { id } = p;
 			if (typeof id !== 'string' || !id.trim()) {

@@ -28,9 +28,7 @@ const createSession = async (odb, userId) => {
 export default () => ({
 	authenticated: false,
 
-	onMsg: async ({ email, name, password }, { odb, onEnter }) => {
-		if (!odb) throw new Error('Enter.js: odb not provided');
-
+	onMessage: async ({ email, name, password }, { odb, onEnter }) => {
 		const isDev = isDevEnv();
 
 		email = typeof email === 'string' ? email.trim().toLowerCase() : '';

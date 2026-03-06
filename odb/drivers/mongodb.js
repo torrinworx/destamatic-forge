@@ -1,5 +1,4 @@
 import { MongoClient } from 'mongodb';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import { buildMongoFilter, buildMongoSort } from '../dsl.js';
 
 const ensureIndex = async (col) => {
@@ -29,6 +28,7 @@ export default async function mongodbDriver({
 		if (!uri) throw new Error('mongodbDriver: missing DB (uri). Set opts.uri or env DB.');
 		if (!dbName) throw new Error('mongodbDriver: missing DB_TABLE (dbName). Set opts.dbName or env DB_TABLE.');
 	} else {
+		const { MongoMemoryServer } = await import('mongodb-memory-server');
 		mongoServer = await MongoMemoryServer.create();
 		uri = mongoServer.getUri();
 		dbName = testDbName;

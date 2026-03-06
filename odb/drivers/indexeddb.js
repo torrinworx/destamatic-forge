@@ -54,7 +54,11 @@ export default async function indexeddbDriver({
 	channelName = `odb:${dbName}`,
 } = {}) {
 	if (test) {
-		await import(/* @vite-ignore */ 'fake-indexeddb/auto');
+		try {
+			await import(/* @vite-ignore */ 'fake-indexeddb/auto');
+		} catch (error) {
+			throw new Error('indexeddbDriver: missing fake-indexeddb; install dev dependency or disable test mode.');
+		}
 	}
 
 	// cache one db connection

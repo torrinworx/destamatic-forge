@@ -21,6 +21,7 @@
         "bcryptjs": "^2.4.3",
         "cron-parser": "^5.5.0",
         "destam": "^0.8.0",
+        "express": "^4.21.2",
         "luxon": "^3.7.2",
         "mongodb": "^7.1.0",
         "uuid": "^11.0.3",

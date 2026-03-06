@@ -63,45 +63,23 @@ export default (injection = {}) => {
 
 	return {
 		internal: async ({ html, userId, subject }) => {
-			const startedAt = Date.now();
 			const htmlContent = ensureHtmlString(html);
-			if (!htmlContent) {
-				console.log('email/Create invalid_html', { elapsedMs: Date.now() - startedAt });
-				return { error: 'invalid_html' };
-			}
+			if (!htmlContent) return { error: 'invalid_html' };
 
 			const cleanSubject = ensureTrimmedString(subject);
-			if (!cleanSubject) {
-				console.log('email/Create invalid_subject', { elapsedMs: Date.now() - startedAt });
-				return { error: 'invalid_subject' };
-			}
+			if (!cleanSubject) return { error: 'invalid_subject' };
 
 			const cleanUserId = ensureTrimmedString(userId);
-			if (!cleanUserId) {
-				console.log('email/Create invalid_user', { elapsedMs: Date.now() - startedAt });
-				return { error: 'invalid_user' };
-			}
-
-			console.log('email/Create start', { userId: cleanUserId });
+			if (!cleanUserId) return { error: 'invalid_user' };
 
 			const userDoc = await odb.findOne({
 				collection: 'users',
 				query: { filter: { field: 'id', op: 'eq', value: cleanUserId } },
 			});
-			if (!userDoc) {
-				console.log('email/Create user_not_found', {
-					userId: cleanUserId,
-					elapsedMs: Date.now() - startedAt,
-				});
-				return { error: 'user_not_found' };
-			}
+			if (!userDoc) return { error: 'user_not_found' };
 
 			const recipientEmail = ensureTrimmedString(userDoc.email);
 			if (!recipientEmail) {
-				console.log('email/Create user_missing_email', {
-					userId: cleanUserId,
-					elapsedMs: Date.now() - startedAt,
-				});
 				await disposeDoc(userDoc);
 				return { error: 'user_missing_email' };
 			}
@@ -125,22 +103,9 @@ export default (injection = {}) => {
 						error: null,
 					}),
 				});
-				console.log('email/Create email_created', {
-					userId: cleanUserId,
-					emailId: emailDoc?.$odb?.key ?? null,
-					elapsedMs: Date.now() - startedAt,
-				});
 
 				try {
-					console.log('email/Create send_start', {
-						userId: cleanUserId,
-						elapsedMs: Date.now() - startedAt,
-					});
 					const transporter = await getTransporter();
-					console.log('email/Create transporter_ready', {
-						userId: cleanUserId,
-						elapsedMs: Date.now() - startedAt,
-					});
 					const sendResult = await transporter.sendMail({
 						from: cfg.from,
 						to: recipientEmail,
@@ -148,11 +113,6 @@ export default (injection = {}) => {
 						html: htmlContent,
 					});
 					const messageId = ensureTrimmedString(sendResult?.messageId) ?? null;
-					console.log('email/Create send_success', {
-						userId: cleanUserId,
-						messageId,
-						elapsedMs: Date.now() - startedAt,
-					});
 
 					emailDoc.status = 'sent';
 					emailDoc.sentAt = Date.now();
@@ -163,11 +123,6 @@ export default (injection = {}) => {
 					return { ok: true, messageId };
 				} catch (err) {
 					const message = toErrorMessage(err);
-					console.log('email/Create send_failed', {
-						userId: cleanUserId,
-						error: message,
-						elapsedMs: Date.now() - startedAt,
-					});
 					emailDoc.status = 'failed';
 					emailDoc.sentAt = null;
 					emailDoc.messageId = null;
@@ -177,10 +132,6 @@ export default (injection = {}) => {
 					return { error: 'send_failed', details: message };
 				}
 			} finally {
-				console.log('email/Create done', {
-					userId: cleanUserId,
-					elapsedMs: Date.now() - startedAt,
-				});
 				await disposeDoc(emailDoc);
 				await disposeDoc(userDoc);
 			}

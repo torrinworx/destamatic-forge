@@ -8,14 +8,13 @@ export default ({ webCore } = {}) => {
 	const apiKey = typeof webCore.config.apiKey === 'string'
 		? webCore.config.apiKey.trim()
 		: '';
-
-	if (!apiKey) throw new Error('Resend api key not provided.');
-
-	const client = new Resend(apiKey);
+	let client = null;
 
 
 	return {
 		internal: async ({ from, to, subject, html }) => {
+			if (!apiKey) throw new Error('Resend api key not provided.');
+			if (!client) client = new Resend(apiKey);
 			const { data, error } = await client.emails.send({ from, to, subject, html });
 			if (error) throw new Error(error?.message || 'email/Create Resend provider failed.');
 

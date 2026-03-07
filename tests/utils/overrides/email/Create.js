@@ -1,4 +1,4 @@
 export const config = {
-	transport: { jsonTransport: true },
+	provider: 'smtp',
 	from: 'no-reply@test.local',
 };

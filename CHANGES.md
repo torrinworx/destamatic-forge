@@ -1,3 +1,12 @@
+/* CHANGE: 07-03-2026 */
+07-03-2026 — [5d22f95] — Add provider-based email sending
+Summary: Added SMTP and Resend provider modules and routed email/Create through the provider selection while keeping tracking in the Create module.
+Breaking: no
+Affected systems: server modules, tests, dependencies
+Files touched: server/modules/email/Create.js, server/modules/email/Smtp.js, server/modules/email/Resend.js, server/modules/email/providers/**, tests/utils/modules-config/email/Create.js, tests/utils/modules-config/email/Smtp.js, package.json
+Rationale: Support multiple email providers without changing caller modules or email tracking behavior.
+/* END CHANGE */
+
 /* CHANGE: 06-03-2026 */
 06-03-2026 — [1bafc00] — Add extension modules for config and overrides
 Summary: Added extension modules to supply config and extension hooks alongside module overrides, updated auth/Enter to apply extension user fields, and migrated tests to the new extension-based config fixtures.

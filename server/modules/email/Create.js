@@ -1,16 +1,9 @@
-import nodemailer from 'nodemailer';
 import { OObject } from 'destam';
 
+export const deps = ['email/Smtp', 'email/Resend'];
+
 export const defaults = {
-	transport: {
-		host: 'localhost',
-		port: 587,
-		secure: false,
-		auth: {
-			user: null,
-			pass: null,
-		},
-	},
+	provider: 'smtp',
 	from: 'no-reply@example.com',
 };
 
@@ -38,31 +31,27 @@ const disposeDoc = async (doc) => {
 
 const buildConfig = (webCore) => {
 	const overrides = isPlainObject(webCore.config) ? webCore.config : {};
-	const transportOverrides = isPlainObject(overrides.transport) ? overrides.transport : {};
-	const authOverrides = isPlainObject(transportOverrides.auth) ? transportOverrides.auth : {};
-	const transport = {
-		...defaults.transport,
-		...transportOverrides,
-	};
-	transport.auth = {
-		...defaults.transport.auth,
-		...authOverrides,
-	};
-	return {
-		transport,
-		from: ensureTrimmedString(overrides.from) ?? defaults.from,
-	};
+	const provider = ensureTrimmedString(overrides.provider) ?? defaults.provider;
+	const from = ensureTrimmedString(overrides.from) ?? defaults.from;
+
+	return { provider, from };
 };
 
 export default (injection = {}) => {
-	const { odb, webCore } = injection;
+	const { odb, webCore, Smtp, Resend } = injection;
 
 	const cfg = buildConfig(webCore);
-	let transporterPromise = null;
-	const getTransporter = () => transporterPromise ??= Promise.resolve(nodemailer.createTransport(cfg.transport || {}));
+	const providerMap = {
+		smtp: Smtp,
+		resend: Resend,
+	};
+	const resolvedProvider = providerMap[cfg.provider] ? cfg.provider : 'smtp';
+	const provider = providerMap[resolvedProvider];
 
 	return {
 		internal: async ({ html, userId, subject }) => {
+			if (typeof provider !== 'function') return { error: 'invalid_provider' };
+
 			const htmlContent = ensureHtmlString(html);
 			if (!htmlContent) return { error: 'invalid_html' };
 
@@ -105,8 +94,7 @@ export default (injection = {}) => {
 				});
 
 				try {
-					const transporter = await getTransporter();
-					const sendResult = await transporter.sendMail({
+					const sendResult = await provider({
 						from: cfg.from,
 						to: recipientEmail,
 						subject: cleanSubject,

@@ -52,6 +52,7 @@ const getBackendOriginOverride = () => {
 	return null;
 };
 
+// TODO: make this system more generic, I don't like this:
 const isLikelyAndroidWebView = () => {
 	// Heuristic that catches Android WebViews so we can route through the adb proxy when needed.
 	const ua = navigator.userAgent || '';

@@ -1,3 +1,13 @@
+/* CHANGE: 08-03-2026 */
+08-03-2026 — [74b198c] — Simplify module injection contract
+Summary: Replaced webCore/config and top-level dependency injection with explicit config and imports props to remove collision risk and clarify module inputs.
+Breaking: yes
+Affected systems: module system, server modules, docs policy
+Files touched: server/modules.js, server/modules/**, AGENTS.md
+Rationale: Prevent dependency name collisions with system injections while making module configuration and imports explicit.
+Migration: Update modules to read config directly and call dependencies via imports.<shortName>.
+/* END CHANGE */
+
 /* CHANGE: 07-03-2026 */
 07-03-2026 — [5d22f95] — Add provider-based email sending
 Summary: Added SMTP and Resend provider modules and routed email/Create through the provider selection while keeping tracking in the Create module.

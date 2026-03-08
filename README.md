@@ -39,7 +39,7 @@ const result = await state.modReq('posts/Create', {
 // modules/posts/Create.js
 import { OObject } from 'destam';
 
-export default ({ odb, webCore }) => ({
+export default ({ odb, config, imports }) => ({
   async onMessage(props, { user }) {
     const post = await odb.open({
       collection: 'posts',
@@ -61,7 +61,7 @@ export default ({ odb, webCore }) => ({
 
 ## Architecture notes
 
-Modules are discovered by scanning directories for `.js` files and naming them by their path (for example `posts/Create`). Dependencies inject by short name, and the module graph is topologically sorted. You can override built-in modules with project modules, and extend modules via separate extension files that supply config or hooks; `moduleConfig` is reserved for disabling modules by name.
+Modules are discovered by scanning directories for `.js` files and naming them by their path (for example `posts/Create`). Dependencies inject by short name under `imports`, and the module graph is topologically sorted. You can override built-in modules with project modules, and extend modules via separate extension files that supply config or hooks; `moduleConfig` is reserved for disabling modules by name.
 
 ODB is an observable persistence layer. Documents are `OObject` roots, autosave is throttled, and live updates sync into existing object references so UI bindings stay intact. Drivers implement create/get/update/remove/queryOne/queryMany/watch, and the server wraps ODB with validators and cleanup hooks so modules can enforce integrity as data is opened.
 

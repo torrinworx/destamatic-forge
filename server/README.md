@@ -8,7 +8,8 @@ The server is composed from small feature modules and extension modules.
   - Each file becomes a module name based on its path, e.g. `modules/posts/Create.js` -> `posts/Create`.
 - **Implementations**: a module implementation `export default (injection) => ({ ...handlers })`.
   - Implementation modules declare handlers like `onMessage`, `onConnection`, `validate`, `schedule`, etc.
-  - Dependencies are injected by *short name* (last path segment). Example: dep `moderation/strings` injects `strings`.
+  - Dependencies are injected by *short name* (last path segment) under `imports`. Example: dep `moderation/strings` injects `imports.strings`.
+  - Module config is injected as `config` (merged defaults + extensions).
 - **Extensions**: extension modules export `config` and/or `extensions` without any primary handlers.
   - The module system allows only one extension module per module name.
   - Extensions are injected into the implementation as `extensions`.

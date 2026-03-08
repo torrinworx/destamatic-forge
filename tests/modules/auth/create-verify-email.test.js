@@ -10,7 +10,7 @@ import { createWsClient } from '../../utils/ws-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const fixturesDir = path.resolve(__dirname, '..', '..', 'utils', 'modules-config');
+const fixturesDir = path.resolve(__dirname, '..', '..', 'utils', 'overrides');
 
 const createUserWithId = async (odb, { email, name, emailVerified = false }) => {
 	const user = await odb.open({

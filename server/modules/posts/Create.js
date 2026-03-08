@@ -17,7 +17,7 @@ const coerceImages = (input) => {
 	return null;
 };
 
-export default ({ strings, webCore }) => {
+export default ({ strings, webCore, extensions }) => {
 	const nameCfg = webCore.config.name;
 	const descCfg = webCore.config.description;
 
@@ -57,7 +57,18 @@ export default ({ strings, webCore }) => {
 			: defaults.description.maxLength;
 
 	return {
-		onMessage: async ({ name, description, tags, image, images }, { user, odb }) => {
+		onMessage: async (props, { user, odb }) => {
+			const p = props || {};
+			let { name, description, tags, image, images } = p;
+			let extensionPatch = null;
+			if (typeof extensions?.postProps === 'function') {
+				const result = await extensions.postProps({
+					props: p,
+					ctx: { user, odb },
+				});
+				if (result?.error) return { error: result.error };
+				if (result && typeof result === 'object') extensionPatch = result;
+			}
 			if (nameEnabled) {
 				if (typeof name !== 'string' || name.length > safeNameMaxLen) {
 					return {
@@ -139,6 +150,11 @@ export default ({ strings, webCore }) => {
 			};
 
 			if (nameEnabled) value.name = name;
+			if (extensionPatch) {
+				for (const [key, val] of Object.entries(extensionPatch)) {
+					value[key] = val;
+				}
+			}
 
 			const post = await odb.open({
 				collection: 'posts',

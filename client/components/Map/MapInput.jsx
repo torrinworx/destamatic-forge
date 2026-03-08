@@ -66,9 +66,13 @@ const normalizeObserver = (value, fallback, mutable = true) => {
 	return Observer.mutable(value ?? fallback);
 };
 
-const normalizeModes = (allowModes) => {
-	const list = Array.isArray(allowModes) ? allowModes.filter(Boolean) : null;
-	return list && list.length ? list : ['point', 'current', 'radius', 'search'];
+const normalizeModes = ({ point, radius, current, search }) => {
+	const list = [];
+	if (point !== false) list.push('point');
+	if (radius !== false) list.push('radius');
+	if (current !== false) list.push('current');
+	if (search !== false) list.push('search');
+	return list.length ? list : ['point'];
 };
 
 const pickInitialMode = (modes, current) => {
@@ -80,7 +84,10 @@ const pickInitialMode = (modes, current) => {
 export default ThemeContext.use(h => {
 	const MapInput = ({
 		value,
-		allowModes,
+		point = true,
+		radius = true,
+		current = true,
+		search = true,
 		minRadius = 100,
 		maxRadius = 5000,
 		radiusStep = 50,
@@ -98,14 +105,14 @@ export default ThemeContext.use(h => {
 		const valueObserver = value?.observer instanceof Observer
 			? value.observer
 			: normalizeObserver(value ?? {}, {}, true);
-		const modes = normalizeModes(allowModes);
+		const modes = normalizeModes({ point, radius, current, search });
 
 		const mapRef = Observer.mutable(null);
 		const center = Observer.mutable({ lat: 0, lng: 0 });
 		const minRadiusObserver = Observer.immutable(minRadius);
 		const maxRadiusObserver = Observer.immutable(maxRadius);
 		const radiusStepObserver = Observer.immutable(radiusStep);
-		const radius = Observer.mutable(minRadiusObserver.get());
+		const radiusValue = Observer.mutable(minRadiusObserver.get());
 		const mode = Observer.mutable(pickInitialMode(modes, defaultMode));
 		const zoom = normalizeObserver(mapProps.zoom ?? 13, 13, true);
 		const mapHeightObserver = mapHeight instanceof Observer ? mapHeight : Observer.immutable(mapHeight);
@@ -202,7 +209,7 @@ export default ThemeContext.use(h => {
 			if (nextCenter) center.set(nextCenter);
 
 			const parsedRadius = parseFloat(next.radius);
-			if (Number.isFinite(parsedRadius)) radius.set(parsedRadius);
+			if (Number.isFinite(parsedRadius)) radiusValue.set(parsedRadius);
 			if (next.mode && modes.includes(next.mode)) mode.set(next.mode);
 			syncingFromValue = false;
 		}));
@@ -210,7 +217,7 @@ export default ThemeContext.use(h => {
 		cleanup(center.effect((next) => {
 			const map = mapRef.get();
 			if (map) applyMarker(map, next);
-			if (map) applyCircle(map, next, radius.get(), mode.get() === 'radius');
+			if (map) applyCircle(map, next, radiusValue.get(), mode.get() === 'radius');
 
 			if (syncingFromValue) return;
 			syncingToValue = true;
@@ -219,7 +226,7 @@ export default ThemeContext.use(h => {
 			syncingToValue = false;
 		}));
 
-		cleanup(radius.effect((next) => {
+		cleanup(radiusValue.effect((next) => {
 			const map = mapRef.get();
 			if (map) applyCircle(map, center.get(), next, mode.get() === 'radius');
 
@@ -236,13 +243,13 @@ export default ThemeContext.use(h => {
 			syncingToValue = false;
 
 			const map = mapRef.get();
-			if (map) applyCircle(map, center.get(), radius.get(), next === 'radius');
+			if (map) applyCircle(map, center.get(), radiusValue.get(), next === 'radius');
 		}));
 
 		cleanup(mapRef.effect((map) => {
 			if (!map) return;
 			applyMarker(map, center.get());
-			applyCircle(map, center.get(), radius.get(), mode.get() === 'radius');
+			applyCircle(map, center.get(), radiusValue.get(), mode.get() === 'radius');
 		}));
 
 		mounted(() => {
@@ -251,7 +258,7 @@ export default ThemeContext.use(h => {
 			if (autoLocate && modes.includes('current')) requestLocation();
 		});
 
-		const radiusLabel = radius.map(r => `${Math.round(r)} m`);
+		const radiusLabel = radiusValue.map(r => `${Math.round(r)} m`);
 		const showRadius = mode.map(m => m === 'radius');
 		const showSearch = mode.map(m => m === 'search');
 		const hasResults = searchResults.map(results => Array.isArray(results) && results.length > 0);
@@ -261,8 +268,8 @@ export default ThemeContext.use(h => {
 		const api = {
 			mode,
 			setMode: (next) => mode.set(next),
-			radius,
-			setRadius: (next) => radius.set(next),
+			radius: radiusValue,
+			setRadius: (next) => radiusValue.set(next),
 			center,
 			setCenter: (next) => center.set(normalizeLatLng(next)),
 			requestLocation,
@@ -331,102 +338,108 @@ export default ThemeContext.use(h => {
 			})();
 		}));
 
+		const showModeButtons = modes.length > 1;
+		const showControlsRow = mode.map(m => showModeButtons || m === 'radius' || m === 'search');
 		const defaultControls = <div style={{ padding: 10 }}>
-			<div
-				theme="mapInput_controlsRow"
-				style={{
-					display: 'flex',
-					flexDirection: 'row',
-					alignItems: 'center',
-					flexWrap: 'wrap',
-					gap: 12,
-				}}
-			>
-				{modes.includes('point') ? <Button
-					label="Point"
-					icon={<Icon name="feather:map-pin" />}
-					type={mode.map(m => m === 'point' ? 'contained' : 'outlined')}
-					onClick={() => mode.set('point')}
-				/> : null}
-				{modes.includes('radius') ? <Button
-					label="Radius"
-					icon={<Icon name="feather:circle" />}
-					type={mode.map(m => m === 'radius' ? 'contained' : 'outlined')}
-					onClick={() => mode.set('radius')}
-				/> : null}
-				{modes.includes('current') ? <Button
-					label="Current"
-					icon={<Icon name="feather:crosshair" />}
-					type={mode.map(m => m === 'current' ? 'contained' : 'outlined')}
-					onClick={() => requestLocation()}
-				/> : null}
-				{modes.includes('search') ? <Button
-					label="Search"
-					icon={<Icon name="feather:search" />}
-					type={mode.map(m => m === 'search' ? 'contained' : 'outlined')}
-					onClick={() => mode.set('search')}
-				/> : null}
+			<Shown value={showControlsRow}>
+				<div
+					theme="mapInput_controlsRow"
+					style={{
+						display: 'flex',
+						flexDirection: 'row',
+						alignItems: 'center',
+						flexWrap: 'wrap',
+						gap: 12,
+					}}
+				>
+					{showModeButtons && modes.includes('point') ? <Button
+						label="Point"
+						icon={<Icon name="feather:map-pin" />}
+						type={mode.map(m => m === 'point' ? 'contained' : 'outlined')}
+						onClick={() => mode.set('point')}
+					/> : null}
+					{showModeButtons && modes.includes('radius') ? <Button
+						label="Radius"
+						icon={<Icon name="feather:circle" />}
+						type={mode.map(m => m === 'radius' ? 'contained' : 'outlined')}
+						onClick={() => mode.set('radius')}
+					/> : null}
+					{showModeButtons && modes.includes('current') ? <Button
+						label="Current"
+						icon={<Icon name="feather:crosshair" />}
+						type={mode.map(m => m === 'current' ? 'contained' : 'outlined')}
+						onClick={() => requestLocation()}
+					/> : null}
+					{showModeButtons && modes.includes('search') ? <Button
+						label="Search"
+						icon={<Icon name="feather:search" />}
+						type={mode.map(m => m === 'search' ? 'contained' : 'outlined')}
+						onClick={() => mode.set('search')}
+					/> : null}
 
-				<Shown value={showRadius}>
-					<Slider
-						style={{ padding: 0 }}
-						value={radius}
-						min={minRadiusObserver}
-						max={maxRadiusObserver}
-						step={radiusStepObserver}
-					/>
-				</Shown>
+					<Shown value={showRadius}>
+						<div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 220 }}>
+							<Typography type="p2" label="Radius:" style={{ opacity: 0.7 }} />
+							<Slider
+								style={{ padding: 0, flex: 1 }}
+								value={radiusValue}
+								min={minRadiusObserver}
+								max={maxRadiusObserver}
+								step={radiusStepObserver}
+							/>
+						</div>
+					</Shown>
 
-				<Shown value={showSearch}>
-					<Detached
-						enabled={searchOpen}
-						locations={[
-							Detached.BOTTOM_LEFT_RIGHT,
-							Detached.BOTTOM_RIGHT_LEFT,
-						]}
-						style={{ zIndex: 2000 }}
-					>
-						<mark:anchor>
-							<div
-								ref={searchAnchorRef}
-								style={{ minWidth: 260, flex: 1, display: 'flex', alignItems: 'center' }}
-							>
-								<ActionField
-									value={searchQuery}
-									placeholder="Search for a place"
-									textFieldType="outlined"
-									buttonType="outlined"
-									icon={<Icon name="feather:search" style={{ color: 'currentColor' }} />}
-									onAction={() => runSearch()}
-								/>
-							</div>
-						</mark:anchor>
+					<Shown value={showSearch}>
+						<Detached
+							enabled={searchOpen}
+							locations={[
+								Detached.BOTTOM_LEFT_RIGHT,
+								Detached.BOTTOM_RIGHT_LEFT,
+							]}
+							style={{ zIndex: 2000 }}
+						>
+							<mark:anchor>
+								<div
+									ref={searchAnchorRef}
+									style={{ minWidth: 260, flex: 1, display: 'flex', alignItems: 'center' }}
+								>
+									<ActionField
+										value={searchQuery}
+										placeholder="Search for a place"
+										textFieldType="outlined"
+										buttonType="outlined"
+										icon={<Icon name="feather:search" style={{ color: 'currentColor' }} />}
+										onAction={() => runSearch()}
+									/>
+								</div>
+							</mark:anchor>
 
-						<mark:popup>
-							<Paper
-								style={{
-									width: searchAnchorWidth.map(w => Number.isFinite(w) && w > 0 ? w : 320),
-									minWidth: 260,
-									maxWidth: 520,
-									boxSizing: 'border-box',
-									maxHeight: 240,
-									overflowY: 'auto',
-									padding: 10,
-								}}
-								onPointerDown={e => e.stopPropagation()}
-								onTouchStart={e => e.stopPropagation()}
-								onMouseDown={e => e.stopPropagation()}
-							>
-								<Shown value={searchLoading}>
-									<Typography type="p2" label="Searching..." />
-								</Shown>
-								<Shown value={searchError.map(e => !!e)}>
-									<Typography type="p2" label={searchError} style={{ color: '$color_error' }} />
-								</Shown>
-								<Shown value={showEmptyResults}>
-									<Typography type="p2" label="No results" />
-								</Shown>
-								{searchResults.map(results => (results || []).map((result, idx) => (
+							<mark:popup>
+								<Paper
+									style={{
+										width: searchAnchorWidth.map(w => Number.isFinite(w) && w > 0 ? w : 320),
+										minWidth: 260,
+										maxWidth: 520,
+										boxSizing: 'border-box',
+										maxHeight: 240,
+										overflowY: 'auto',
+										padding: 10,
+									}}
+									onPointerDown={e => e.stopPropagation()}
+									onTouchStart={e => e.stopPropagation()}
+									onMouseDown={e => e.stopPropagation()}
+								>
+									<Shown value={searchLoading}>
+										<Typography type="p2" label="Searching..." />
+									</Shown>
+									<Shown value={searchError.map(e => !!e)}>
+										<Typography type="p2" label={searchError} style={{ color: '$color_error' }} />
+									</Shown>
+									<Shown value={showEmptyResults}>
+										<Typography type="p2" label="No results" />
+									</Shown>
+									{searchResults.map(results => (results || []).map((result, idx) => (
 									<Button
 										key={idx}
 										type="text"
@@ -454,6 +467,7 @@ export default ThemeContext.use(h => {
 					</Detached>
 				</Shown>
 			</div>
+		</Shown>
 		</div>;
 
 		const overlayControls = renderControls

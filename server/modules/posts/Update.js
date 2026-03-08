@@ -17,7 +17,7 @@ const coerceImages = (input) => {
 	return null;
 };
 
-export default ({ strings, webCore }) => {
+export default ({ strings, webCore, extensions }) => {
 	const nameCfg = webCore.config.name;
 	const descCfg = webCore.config.description;
 
@@ -83,6 +83,16 @@ export default ({ strings, webCore }) => {
 
 			const now = Date.now();
 			let changed = false;
+			let extensionPatch = null;
+			if (typeof extensions?.postUpdate === 'function') {
+				const result = await extensions.postUpdate({
+					props: p,
+					post,
+					ctx: { user, odb },
+				});
+				if (result?.error) return { error: result.error };
+				if (result && typeof result === 'object') extensionPatch = result;
+			}
 
 			// name
 			if ('name' in p) {
@@ -159,6 +169,13 @@ export default ({ strings, webCore }) => {
 						return { error: 'Invalid images. Must be a string or an array of strings.' };
 					}
 					post.images = OArray(coerced);
+					changed = true;
+				}
+			}
+
+			if (extensionPatch) {
+				for (const [key, val] of Object.entries(extensionPatch)) {
+					post[key] = val;
 					changed = true;
 				}
 			}

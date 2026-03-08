@@ -45,12 +45,12 @@ const getUserIdFromContext = user => {
 	return typeof user.id === 'string' && user.id ? user.id : null;
 };
 
-export default ({ odb, webCore, Create }) => {
-	const subject = ensureString(webCore.config.subject) || defaults.subject;
-	const tokenTtlMs = clampPositiveInt(webCore.config.tokenTtlMs, defaults.tokenTtlMs);
-	const maxDailyRequests = clampPositiveInt(webCore.config.maxDailyRequests, defaults.maxDailyRequests);
-	const minResendWindowMs = clampPositiveInt(webCore.config.minResendWindowMs, defaults.minResendWindowMs);
-	const appUrl = sanitizeBaseUrl(webCore.config.urls?.app ?? defaults.urls.app) ?? defaults.urls.app;
+export default ({ odb, config, imports }) => {
+	const subject = ensureString(config.subject) || defaults.subject;
+	const tokenTtlMs = clampPositiveInt(config.tokenTtlMs, defaults.tokenTtlMs);
+	const maxDailyRequests = clampPositiveInt(config.maxDailyRequests, defaults.maxDailyRequests);
+	const minResendWindowMs = clampPositiveInt(config.minResendWindowMs, defaults.minResendWindowMs);
+	const appUrl = sanitizeBaseUrl(config.urls?.app ?? defaults.urls.app) ?? defaults.urls.app;
 
 	return {
 		authenticated: true,
@@ -147,7 +147,7 @@ export default ({ odb, webCore, Create }) => {
 
 				let emailResult;
 				try {
-					emailResult = await Create({ userId: resolvedUserId, html, subject });
+				emailResult = await imports.Create({ userId: resolvedUserId, html, subject });
 				} catch (err) {
 					emailResult = { error: 'send_failed', details: err?.message ?? String(err) };
 				}

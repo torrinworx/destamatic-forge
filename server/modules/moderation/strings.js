@@ -128,10 +128,10 @@ const makeConfig = (cfg) => {
 	};
 };
 
-export default ({ webCore }) => {
+export default ({ config }) => {
 	let cfg;
 	try {
-		cfg = makeConfig(webCore.config);
+		cfg = makeConfig(config);
 	} catch (e) {
 		throw new Error(`moderation/strings: ${e.message}`);
 	}

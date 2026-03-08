@@ -21,26 +21,26 @@ const normalizeEvery = (every, fallback) => {
 	return fallback;
 };
 
-export default ({ webCore }) => {
+export default ({ config }) => {
 	// Allow disabling schedule without disabling the whole module.
-	if (webCore.config.schedule === false) return {};
+	if (config.schedule === false) return {};
 
-	const batchSize = Number.isFinite(webCore.config.batchSize) && webCore.config.batchSize > 0
-		? Math.floor(webCore.config.batchSize)
+	const batchSize = Number.isFinite(config.batchSize) && config.batchSize > 0
+		? Math.floor(config.batchSize)
 		: defaults.batchSize;
 
-	const tz = typeof webCore.config.schedule?.tz === 'string' && webCore.config.schedule.tz.trim()
-		? webCore.config.schedule.tz.trim()
+	const tz = typeof config.schedule?.tz === 'string' && config.schedule.tz.trim()
+		? config.schedule.tz.trim()
 		: defaults.schedule.tz;
 
-	const runOnStart = webCore.config.schedule?.runOnStart === true;
-	const cron = typeof webCore.config.schedule?.cron === 'string' && webCore.config.schedule.cron.trim()
-		? webCore.config.schedule.cron.trim()
+	const runOnStart = config.schedule?.runOnStart === true;
+	const cron = typeof config.schedule?.cron === 'string' && config.schedule.cron.trim()
+		? config.schedule.cron.trim()
 		: null;
 
 	const every = cron
 		? null
-		: normalizeEvery(webCore.config.schedule?.every, defaults.schedule.every);
+		: normalizeEvery(config.schedule?.every, defaults.schedule.every);
 
 	const findExpiredBatch = async (odb, now) => {
 		return odb.driver.findMany({

@@ -33,20 +33,20 @@ export const defaults = {
 	},
 };
 
-export default ({ serverProps, Create: addFile, images: modImg, odb, webCore }) => {
+export default ({ serverProps, imports, odb, config }) => {
 	const app = serverProps.app;
 	app.use(cookieParser());
 
-	const route = typeof webCore.config.route === 'string' && webCore.config.route ? webCore.config.route : defaults.route;
-	const fieldName = typeof webCore.config.fieldName === 'string' && webCore.config.fieldName ? webCore.config.fieldName : defaults.fieldName;
-	const userMaxBytes = Number.isFinite(webCore.config.maxBytes) ? Math.floor(webCore.config.maxBytes) : null;
+	const route = typeof config.route === 'string' && config.route ? config.route : defaults.route;
+	const fieldName = typeof config.fieldName === 'string' && config.fieldName ? config.fieldName : defaults.fieldName;
+	const userMaxBytes = Number.isFinite(config.maxBytes) ? Math.floor(config.maxBytes) : null;
 	const maxBytes = userMaxBytes && userMaxBytes > 0 ? userMaxBytes : defaults.maxBytes;
-	const allowedMimeTypes = Array.isArray(webCore.config.allowedMimeTypes) ? webCore.config.allowedMimeTypes : defaults.allowedMimeTypes;
+	const allowedMimeTypes = Array.isArray(config.allowedMimeTypes) ? config.allowedMimeTypes : defaults.allowedMimeTypes;
 	const allowedMimes = new Set(allowedMimeTypes);
-	const cookieName = typeof webCore.config.cookieName === 'string' && webCore.config.cookieName ? webCore.config.cookieName : defaults.cookieName;
-	const sessionCollection = typeof webCore.config.sessionCollection === 'string' && webCore.config.sessionCollection ? webCore.config.sessionCollection : defaults.sessionCollection;
-	const messageOverrides = isPlainObject(webCore.config.messages)
-		? { ...defaults.messages, ...webCore.config.messages }
+	const cookieName = typeof config.cookieName === 'string' && config.cookieName ? config.cookieName : defaults.cookieName;
+	const sessionCollection = typeof config.sessionCollection === 'string' && config.sessionCollection ? config.sessionCollection : defaults.sessionCollection;
+	const messageOverrides = isPlainObject(config.messages)
+		? { ...defaults.messages, ...config.messages }
 		: defaults.messages;
 
 	const upload = multer({
@@ -96,7 +96,7 @@ export default ({ serverProps, Create: addFile, images: modImg, odb, webCore }) 
 			const base64 = buffer.toString('base64');
 
 			const normalizedMime = mimetype === 'image/jpg' ? 'image/jpeg' : mimetype;
-			const mod = await modImg({
+			const mod = await imports.images({
 				imageBase64: base64,
 				mimeType: normalizedMime,
 			});
@@ -109,7 +109,7 @@ export default ({ serverProps, Create: addFile, images: modImg, odb, webCore }) 
 				});
 			}
 
-			const fileId = await addFile({
+			const fileId = await imports.Create({
 				user,
 				file: req.file,
 				meta: {

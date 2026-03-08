@@ -29,8 +29,8 @@ const disposeDoc = async (doc) => {
 	}
 };
 
-const buildConfig = (webCore) => {
-	const overrides = isPlainObject(webCore.config) ? webCore.config : {};
+const buildConfig = (config) => {
+	const overrides = isPlainObject(config) ? config : {};
 	const provider = ensureTrimmedString(overrides.provider) ?? defaults.provider;
 	const from = ensureTrimmedString(overrides.from) ?? defaults.from;
 
@@ -38,12 +38,12 @@ const buildConfig = (webCore) => {
 };
 
 export default (injection = {}) => {
-	const { odb, webCore, Smtp, Resend } = injection;
+	const { odb, config, imports } = injection;
 
-	const cfg = buildConfig(webCore);
+	const cfg = buildConfig(config);
 	const providerMap = {
-		smtp: Smtp,
-		resend: Resend,
+		smtp: imports.Smtp,
+		resend: imports.Resend,
 	};
 	const resolvedProvider = providerMap[cfg.provider] ? cfg.provider : 'smtp';
 	const provider = providerMap[resolvedProvider];

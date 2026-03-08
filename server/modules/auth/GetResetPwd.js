@@ -22,12 +22,12 @@ const disposeDoc = async (doc) => {
 const clampPositiveInt = (value, fallback) => (Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback);
 
 export default (injection = {}) => {
-	const { odb, webCore, Create } = injection;
+	const { odb, config, imports } = injection;
 
-	const clientUrl = ensureString(webCore.config.clientUrl) || defaults.clientUrl;
-	const tokenTtlMs = clampPositiveInt(webCore.config.tokenTtlMs, defaults.tokenTtlMs);
-	const maxEmailsPerDay = clampPositiveInt(webCore.config.maxEmailsPerDay, defaults.maxEmailsPerDay);
-	const subject = ensureString(webCore.config.subject) || defaults.subject;
+	const clientUrl = ensureString(config.clientUrl) || defaults.clientUrl;
+	const tokenTtlMs = clampPositiveInt(config.tokenTtlMs, defaults.tokenTtlMs);
+	const maxEmailsPerDay = clampPositiveInt(config.maxEmailsPerDay, defaults.maxEmailsPerDay);
+	const subject = ensureString(config.subject) || defaults.subject;
 
 	return {
 		authenticated: false,
@@ -107,7 +107,7 @@ export default (injection = {}) => {
 
 				let emailResult;
 				try {
-					emailResult = await Create({ userId, html, subject });
+				emailResult = await imports.Create({ userId, html, subject });
 				} catch (err) {
 					console.error('auth/GetResetPwd email error:', err);
 					emailResult = { error: 'send_failed', details: err?.message ?? String(err) };

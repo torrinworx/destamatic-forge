@@ -12,8 +12,8 @@ export const defaults = {
 	},
 };
 
-export default ({ webCore } = {}) => {
-	const transporterPromise = Promise.resolve(nodemailer.createTransport(webCore.config.transport));
+export default ({ config } = {}) => {
+	const transporterPromise = Promise.resolve(nodemailer.createTransport(config.transport));
 
 	return {
 		internal: async ({ from, to, subject, html }) => {

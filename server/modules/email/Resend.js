@@ -4,9 +4,9 @@ export const defaults = {
 	apiKey: null,
 };
 
-export default ({ webCore } = {}) => {
-	const apiKey = typeof webCore.config.apiKey === 'string'
-		? webCore.config.apiKey.trim()
+export default ({ config } = {}) => {
+	const apiKey = typeof config.apiKey === 'string'
+		? config.apiKey.trim()
 		: '';
 	let client = null;
 

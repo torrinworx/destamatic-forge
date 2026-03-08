@@ -34,15 +34,16 @@ If a change violates a higher tier, it is wrong even if it “works.”
 ## MODULE SYSTEM CONTRACT (CANONICAL)
 - Hook names: `onConnection`, `onMessage`, `validate`, `schedule`, `internal`, `authenticated`.
 - Injections always present (from `server/core.js`):
-  - `webCore` and `webCore.config` (always defined)
+  - `config` (always defined)
   - `odb`, `server`, `env`, `serverProps`, `registerValidator`, `registerSchedule`, `logStartup`
-  - dependencies injected by short name (last path segment)
-- Defaults are merged upstream; modules read `webCore.config` directly.
+  - `extensions`
+  - `imports` (dependencies injected by short name, last path segment)
+- Defaults are merged upstream; modules read `config` directly.
 - Do not guard against missing `odb` or missing deps inside modules.
 
 ## CODING POLICY (STRICT)
 - No one-off helper functions. Inline unless reused in multiple places.
-- No aliasing `webCore.config` if it is used directly and not transformed.
+- No aliasing `config` if it is used directly and not transformed.
 - Shared utilities live in `common/` only if they are cross-module and justified.
 - Keep code tight and direct; avoid helper sprawl.
 

@@ -54,39 +54,39 @@ const createCache = (maxSize) => {
 	return { get, set };
 };
 
-export default ({ webCore } = {}) => {
-	const messages = isPlainObject(webCore.config.messages)
-		? { ...defaults.messages, ...webCore.config.messages }
+export default ({ config } = {}) => {
+	const messages = isPlainObject(config.messages)
+		? { ...defaults.messages, ...config.messages }
 		: defaults.messages;
 
-	const baseUrl = typeof webCore.config.baseUrl === 'string' && webCore.config.baseUrl ? webCore.config.baseUrl : defaults.baseUrl;
-	const userAgent = typeof webCore.config.userAgent === 'string' && webCore.config.userAgent ? webCore.config.userAgent : defaults.userAgent;
-	const referer = typeof webCore.config.referer === 'string' && webCore.config.referer ? webCore.config.referer : defaults.referer;
-	const acceptLanguage = typeof webCore.config.acceptLanguage === 'string' && webCore.config.acceptLanguage ? webCore.config.acceptLanguage : defaults.acceptLanguage;
-	const email = typeof webCore.config.email === 'string' && webCore.config.email ? webCore.config.email : defaults.email;
-	const minQueryLength = Number.isFinite(webCore.config.minQueryLength)
-		? Math.max(1, Math.floor(webCore.config.minQueryLength))
+	const baseUrl = typeof config.baseUrl === 'string' && config.baseUrl ? config.baseUrl : defaults.baseUrl;
+	const userAgent = typeof config.userAgent === 'string' && config.userAgent ? config.userAgent : defaults.userAgent;
+	const referer = typeof config.referer === 'string' && config.referer ? config.referer : defaults.referer;
+	const acceptLanguage = typeof config.acceptLanguage === 'string' && config.acceptLanguage ? config.acceptLanguage : defaults.acceptLanguage;
+	const email = typeof config.email === 'string' && config.email ? config.email : defaults.email;
+	const minQueryLength = Number.isFinite(config.minQueryLength)
+		? Math.max(1, Math.floor(config.minQueryLength))
 		: defaults.minQueryLength;
-	const maxResults = Number.isFinite(webCore.config.maxResults)
-		? clamp(Math.floor(webCore.config.maxResults), 1, 50)
+	const maxResults = Number.isFinite(config.maxResults)
+		? clamp(Math.floor(config.maxResults), 1, 50)
 		: defaults.maxResults;
-	const cacheTtlMs = Number.isFinite(webCore.config.cacheTtlMs)
-		? Math.max(0, Math.floor(webCore.config.cacheTtlMs))
+	const cacheTtlMs = Number.isFinite(config.cacheTtlMs)
+		? Math.max(0, Math.floor(config.cacheTtlMs))
 		: defaults.cacheTtlMs;
-	const cacheMaxSize = Number.isFinite(webCore.config.cacheMaxSize)
-		? clamp(Math.floor(webCore.config.cacheMaxSize), 1, 5000)
+	const cacheMaxSize = Number.isFinite(config.cacheMaxSize)
+		? clamp(Math.floor(config.cacheMaxSize), 1, 5000)
 		: defaults.cacheMaxSize;
-	const globalRateLimitMs = Number.isFinite(webCore.config.globalRateLimitMs)
-		? Math.max(0, Math.floor(webCore.config.globalRateLimitMs))
+	const globalRateLimitMs = Number.isFinite(config.globalRateLimitMs)
+		? Math.max(0, Math.floor(config.globalRateLimitMs))
 		: defaults.globalRateLimitMs;
-	const ipRateLimitMs = Number.isFinite(webCore.config.ipRateLimitMs)
-		? Math.max(0, Math.floor(webCore.config.ipRateLimitMs))
+	const ipRateLimitMs = Number.isFinite(config.ipRateLimitMs)
+		? Math.max(0, Math.floor(config.ipRateLimitMs))
 		: defaults.ipRateLimitMs;
-	const requestTimeoutMs = Number.isFinite(webCore.config.requestTimeoutMs)
-		? Math.max(1000, Math.floor(webCore.config.requestTimeoutMs))
+	const requestTimeoutMs = Number.isFinite(config.requestTimeoutMs)
+		? Math.max(1000, Math.floor(config.requestTimeoutMs))
 		: defaults.requestTimeoutMs;
-	const attributionText = typeof webCore.config.attributionText === 'string' && webCore.config.attributionText
-		? webCore.config.attributionText
+	const attributionText = typeof config.attributionText === 'string' && config.attributionText
+		? config.attributionText
 		: defaults.attributionText;
 
 	const cache = createCache(cacheMaxSize);

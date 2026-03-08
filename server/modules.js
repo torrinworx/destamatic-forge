@@ -202,9 +202,7 @@ const topoSort = (modulesMap, disabledNames) => {
 
 /**
  * Instantiate modules in topological order.  
- *    - Instead of providing all modules in one object, we convert
- *      each dependency, e.g. "stripe/payment", into an injection like:
- *        payment: (args) => instantiated["stripe/payment"].internal(args)
+ *    - Dependencies are injected under "imports" by short name.
  *    - Also pass "props" (global extra data) for convenience.
  */
 const instantiateModules = async (modulesMap, sortedNames, props) => {
@@ -242,11 +240,9 @@ const instantiateModules = async (modulesMap, sortedNames, props) => {
 		// Build the injection object
 		const injection = {
 			...baseProps,
-			webCore: {
-				name,
-				config: effectiveConfig,
-			},
+			config: effectiveConfig,
 			extensions: extension?.extensions || {},
+			imports: {},
 		};
 
 		for (const depName of deps) {
@@ -263,7 +259,7 @@ const instantiateModules = async (modulesMap, sortedNames, props) => {
 				);
 			}
 
-			injection[shortName] = (...args) => {
+			injection.imports[shortName] = (...args) => {
 				return depInstance.internal(...args);
 			};
 		}

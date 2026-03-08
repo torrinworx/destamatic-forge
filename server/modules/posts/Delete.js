@@ -4,8 +4,8 @@ export const defaults = {
 	deletionGraceMs: 1000 * 60 * 60 * 24 * 30, // 30 days
 };
 
-export default ({ webCore }) => {
-	let deletionGraceMs = webCore.config.deletionGraceMs;
+export default ({ config }) => {
+	let deletionGraceMs = config.deletionGraceMs;
 	if (!Number.isFinite(deletionGraceMs) || deletionGraceMs < 0) {
 		deletionGraceMs = defaults.deletionGraceMs;
 	}

@@ -30,21 +30,21 @@ const ensureRoute = (value) => {
 	return candidate.startsWith("/") ? candidate : `/${candidate}`;
 };
 
-export default ({ serverProps, webCore }) => {
-	const route = ensureRoute(webCore.config.route ?? defaults.route);
-	const filesPath = typeof webCore.config.filesPath === "string" && webCore.config.filesPath ? webCore.config.filesPath : defaults.filesPath;
-	const allowInProduction = webCore.config.allowInProduction === true;
+export default ({ serverProps, config }) => {
+	const route = ensureRoute(config.route ?? defaults.route);
+	const filesPath = typeof config.filesPath === "string" && config.filesPath ? config.filesPath : defaults.filesPath;
+	const allowInProduction = config.allowInProduction === true;
 	const staticOptions = {
 		...defaults.staticOptions,
-		...(webCore.config.staticOptions || {}),
+		...(config.staticOptions || {}),
 	};
 
 	const notFoundPayload = {
 		...defaults.notFound.payload,
-		...(webCore.config.notFound?.payload || {}),
+		...(config.notFound?.payload || {}),
 	};
-	const notFoundStatus = typeof webCore.config.notFound?.status === "number" && Number.isFinite(webCore.config.notFound.status)
-		? Math.max(100, Math.min(599, Math.floor(webCore.config.notFound.status)))
+	const notFoundStatus = typeof config.notFound?.status === "number" && Number.isFinite(config.notFound.status)
+		? Math.max(100, Math.min(599, Math.floor(config.notFound.status)))
 		: defaults.notFound.status;
 
 	if (!allowInProduction && process.env.NODE_ENV === "production") return;

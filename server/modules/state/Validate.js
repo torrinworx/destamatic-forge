@@ -126,14 +126,14 @@ const normalizeUserValue = (key, value, socialLinkDomains) => {
 	}
 };
 
-export default ({ odb, webCore }) => ({
+export default ({ odb, config }) => ({
 	validate: {
 		table: 'state',
 
 		register: async state => {
 			if (!state || typeof state !== 'object') return;
 
-			const cfg = ensurePlainObject(webCore.config);
+			const cfg = ensurePlainObject(config);
 			const throttleMs = Number.isFinite(cfg.throttleMs) && cfg.throttleMs >= 0 ? Math.floor(cfg.throttleMs) : 0;
 
 			const userToProfileCfg = ensurePlainObject(cfg.userToProfile);

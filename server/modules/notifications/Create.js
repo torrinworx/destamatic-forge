@@ -7,9 +7,9 @@ export const defaults = {
 	allowTest: true,
 };
 
-export default ({ odb, webCore, Create }) => {
-	const limit = Math.floor(webCore.config.limit);
-	const allowTest = webCore.config.allowTest !== false;
+export default ({ odb, config, imports }) => {
+	const limit = Math.floor(config.limit);
+	const allowTest = config.allowTest !== false;
 
 	const activeUsers = new Map();
 
@@ -38,7 +38,7 @@ export default ({ odb, webCore, Create }) => {
 	};
 
 	const sendEmail = async ({ userId, title, body }) => {
-		if (typeof Create !== 'function') return { ok: false, error: 'email_provider_missing' };
+		if (typeof imports.Create !== 'function') return { ok: false, error: 'email_provider_missing' };
 
 		const subject = title || 'Notification';
 		const html = [
@@ -47,7 +47,7 @@ export default ({ odb, webCore, Create }) => {
 		].join('');
 
 		try {
-			const result = await Create({ userId, subject, html });
+			const result = await imports.Create({ userId, subject, html });
 			if (result?.ok) return { ok: true, messageId: result.messageId ?? null };
 			return { ok: false, error: result?.error ?? 'email_failed', details: result?.details };
 		} catch (err) {

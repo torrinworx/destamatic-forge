@@ -17,12 +17,12 @@ const coerceImages = (input) => {
 	return null;
 };
 
-export default ({ strings, webCore, extensions }) => {
-	const nameCfg = webCore.config.name;
-	const descCfg = webCore.config.description;
+export default ({ imports, config, extensions }) => {
+	const nameCfg = config.name;
+	const descCfg = config.description;
 
-	const tagsCfg = webCore.config.tags;
-	const imagesCfg = webCore.config.images;
+	const tagsCfg = config.tags;
+	const imagesCfg = config.images;
 
 	const nameEnabled = nameCfg !== false;
 	const descEnabled = descCfg !== false;
@@ -75,8 +75,8 @@ export default ({ strings, webCore, extensions }) => {
 			if (!userId) return { error: 'Unauthorized' };
 			if (post.user !== userId) return { error: 'Unauthorized' };
 
-			const check = async (label, text) => {
-				const r = await strings(text);
+		const check = async (label, text) => {
+			const r = await imports.strings(text);
 				if (!r.ok) return { error: `${label} violates moderation rules.`, details: r.reason };
 				return null;
 			};

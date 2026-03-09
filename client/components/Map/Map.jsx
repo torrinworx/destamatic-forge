@@ -1,6 +1,3 @@
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-
 import {
 	Observer,
 	Theme,
@@ -163,6 +160,7 @@ export default ThemeContext.use(h => {
 	}, cleanup, mounted) => {
 		const mapContainer = Observer.mutable(null);
 		const mapObserver = mapRef instanceof Observer ? mapRef : Observer.mutable(null);
+		let leaflet = null;
 
 		const centerObserver = normalizeObserver(center, { lat: 0, lng: 0 }, true);
 		const zoomObserver = normalizeObserver(zoom, 13, true);
@@ -193,18 +191,12 @@ export default ThemeContext.use(h => {
 		};
 
 		mounted(() => {
+			if (typeof window === 'undefined') return;
 			const container = mapContainer.get();
 			if (!container) return;
-			const initialCenter = normalizeLatLng(centerObserver.get());
-			const initialZoom = zoomObserver.get() ?? 13;
-			const map = L.map(container, {
-				attributionControl: false,
-				zoomControl: false,
-			}).setView([initialCenter.lat, initialCenter.lng], initialZoom);
 
-			mapObserver.set(map);
-
-			L.tileLayer(tileLayer, tileLayerOptions).addTo(map);
+			let cancelled = false;
+			let map = null;
 
 			const handleMove = () => {
 				const currentMap = mapObserver.get();
@@ -232,6 +224,7 @@ export default ThemeContext.use(h => {
 			const handleZoom = () => {
 				const currentMap = mapObserver.get();
 				if (!currentMap) return;
+
 				const nextZoom = currentMap.getZoom();
 				const nextBounds = currentMap.getBounds();
 
@@ -245,15 +238,35 @@ export default ThemeContext.use(h => {
 				onBoundsChange?.(nextBounds, currentMap);
 			};
 
-			map.on('moveend', handleMove);
-			map.on('zoomend', handleZoom);
-			if (onClick) map.on('click', (event) => onClick(event, map));
+			(async () => {
+				const module = await import('leaflet');
+				await import('leaflet/dist/leaflet.css');
+				if (cancelled) return;
+				leaflet = module.default ?? module;
 
-			applyLayers(map, layersObserver.get?.() ?? []);
-			applyControls(map, controlsObserver.get?.() ?? []);
-			onReady?.(map);
+				const initialCenter = normalizeLatLng(centerObserver.get());
+				const initialZoom = zoomObserver.get() ?? 13;
+				map = leaflet.map(container, {
+					attributionControl: false,
+					zoomControl: false,
+				}).setView([initialCenter.lat, initialCenter.lng], initialZoom);
+
+				mapObserver.set(map);
+
+				leaflet.tileLayer(tileLayer, tileLayerOptions).addTo(map);
+
+				map.on('moveend', handleMove);
+				map.on('zoomend', handleZoom);
+				if (onClick) map.on('click', (event) => onClick(event, map));
+
+				applyLayers(map, layersObserver.get?.() ?? []);
+				applyControls(map, controlsObserver.get?.() ?? []);
+				onReady?.(map);
+			})();
 
 			cleanup(() => {
+				cancelled = true;
+				if (!map) return;
 				activeLayers.forEach(item => removeLayerItem(map, item));
 				activeControls.forEach(item => removeControlItem(map, item));
 				map.remove();

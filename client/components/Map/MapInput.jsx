@@ -1,5 +1,3 @@
-import L from 'leaflet';
-
 import {
 	Observer,
 	Theme,
@@ -106,6 +104,7 @@ export default ThemeContext.use(h => {
 			? value.observer
 			: normalizeObserver(value ?? {}, {}, true);
 		const modes = normalizeModes({ point, radius, current, search });
+		let leaflet = null;
 
 		const mapRef = Observer.mutable(null);
 		const center = Observer.mutable({ lat: 0, lng: 0 });
@@ -147,11 +146,11 @@ export default ThemeContext.use(h => {
 		};
 
 		const applyMarker = (map, nextCenter) => {
-			if (!map || !nextCenter) return;
+			if (!map || !nextCenter || !leaflet) return;
 			const latlng = [nextCenter.lat, nextCenter.lng];
 
 			if (!marker) {
-				marker = L.marker(latlng, { draggable: !!draggableMarker }).addTo(map);
+				marker = leaflet.marker(latlng, { draggable: !!draggableMarker }).addTo(map);
 				if (draggableMarker) {
 					marker.on('dragend', () => {
 						const pos = marker.getLatLng();
@@ -164,7 +163,7 @@ export default ThemeContext.use(h => {
 		};
 
 		const applyCircle = (map, nextCenter, nextRadius, show) => {
-			if (!map || !nextCenter) return;
+			if (!map || !nextCenter || !leaflet) return;
 			if (!show) {
 				if (circle) {
 					circle.remove();
@@ -175,7 +174,7 @@ export default ThemeContext.use(h => {
 
 			const latlng = [nextCenter.lat, nextCenter.lng];
 			if (!circle) {
-				circle = L.circle(latlng, { radius: nextRadius }).addTo(map);
+				circle = leaflet.circle(latlng, { radius: nextRadius }).addTo(map);
 			} else {
 				circle.setLatLng(latlng);
 				circle.setRadius(nextRadius);
@@ -253,6 +252,18 @@ export default ThemeContext.use(h => {
 		}));
 
 		mounted(() => {
+			if (typeof window !== 'undefined') {
+				(async () => {
+					const module = await import('leaflet');
+					leaflet = module.default ?? module;
+					const map = mapRef.get();
+					if (map) {
+						applyMarker(map, center.get());
+						applyCircle(map, center.get(), radiusValue.get(), mode.get() === 'radius');
+					}
+				})();
+			}
+
 			const nextCenter = normalizeLatLng(valueObserver.get(), null);
 			if (nextCenter) center.set(nextCenter);
 			if (autoLocate && modes.includes('current')) requestLocation();
